@@ -151,4 +151,5 @@ if uploaded_file:
         label="⬇️ Descargar PDF ENUMERADO",
         data=output,
         file_name=pdf_final,
-        
+        mime="application/pdf"
+    )
