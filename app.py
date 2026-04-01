@@ -7,67 +7,113 @@ import re
 import os
 
 # =========================================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN
 # =========================================================
 st.set_page_config(
-    page_title="ContaFlow",
-    page_icon="💼",
+    page_title="FlowLedger",
+    page_icon="📊",
     layout="wide"
 )
 
 # =========================================================
-# ESTILOS PREMIUM (CSS)
+# CSS PREMIUM
 # =========================================================
 st.markdown("""
 <style>
 .main {
-    background-color: #0e1117;
+    background-color: #0b1220;
 }
-h1, h2, h3 {
-    color: #ffffff;
+h1 {
+    font-size: 42px !important;
+    font-weight: 700 !important;
 }
 .stButton>button {
-    background-color: #2563eb;
+    background: linear-gradient(90deg, #2563eb, #1d4ed8);
     color: white;
-    border-radius: 10px;
+    border-radius: 12px;
     height: 3em;
-    width: 100%;
-    font-size: 16px;
+    font-weight: 600;
 }
 .stDownloadButton>button {
-    background-color: #16a34a;
+    background: linear-gradient(90deg, #16a34a, #15803d);
     color: white;
-    border-radius: 10px;
+    border-radius: 12px;
     height: 3em;
-    width: 100%;
-}
-.css-1d391kg {
-    background-color: #111827;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SIDEBAR (MARCA)
+# SIDEBAR
 # =========================================================
 with st.sidebar:
-    st.title("💼 ContaFlow")
-    st.markdown("### Automatización de Enumeración de Movimientos")
-    
+    st.title("FlowLedger")
+    st.caption("Sistema de automatización financiera")
+
     st.divider()
-    
-    st.markdown("### 🏦 Bancos disponibles")
-    st.markdown("- BBVA Débito")
-    st.markdown("- BBVA Crédito")
-    st.markdown("- Banamex")
-    
+
+    st.markdown("### 🏦 Bancos")
+    st.markdown("BBVA Débito")
+    st.markdown("BBVA Crédito")
+    st.markdown("Banamex")
+
     st.divider()
-    
-    st.markdown("### ⚙️ Estado")
+
     st.success("Sistema activo")
 
 # =========================================================
-# CONFIGURACIÓN PDF
+# HEADER PREMIUM
+# =========================================================
+st.markdown("""
+<div style='text-align: center; padding-top: 20px; padding-bottom: 10px;'>
+    <h1>FlowLedger</h1>
+    <p style='font-size: 18px; color: #9ca3af;'>
+        Automatización de Movimientos Bancarios
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div style='width: 120px; height: 4px; background: linear-gradient(90deg, #2563eb, #1d4ed8); margin: auto; border-radius: 10px;'></div>
+""", unsafe_allow_html=True)
+
+st.divider()
+
+# =========================================================
+# DASHBOARD
+# =========================================================
+st.markdown("### 📊 Panel de Control")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("""
+    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
+        <h3>📄 PDFs procesados</h3>
+        <h2>0</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
+        <h3>🏦 Bancos activos</h3>
+        <h2>3</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""
+    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
+        <h3>⚡ Estado</h3>
+        <h2 style='color:#16a34a;'>Activo</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.divider()
+
+# =========================================================
+# CONFIG PDF
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
@@ -75,7 +121,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# FUNCIÓN PRINCIPAL
+# FUNCIÓN PDF
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -86,7 +132,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
-
             words = page.extract_words(use_text_flow=True)
             if not words:
                 can.showPage()
@@ -96,7 +141,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
             for w in words:
                 t = w["text"].strip()
-
                 if not patron_monto.match(t):
                     continue
 
@@ -108,31 +152,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if top < 120:
                     continue
 
-                # MONTOS EN LA MISMA FILA
-                linea_montos = []
-                for ww in words:
-                    if abs(float(ww["top"]) - top) < 3:
-                        texto = ww["text"].strip()
-                        if patron_monto.match(texto):
-                            linea_montos.append({
-                                "text": texto,
-                                "x0": float(ww["x0"]),
-                                "x1": float(ww["x1"])
-                            })
-
-                linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
-
-                ignorar = False
-                if len(linea_montos) >= 3:
-                    for i, m in enumerate(linea_montos):
-                        if m["text"] == t and abs(m["x0"] - x0) < 1:
-                            if i == 1:
-                                ignorar = True
-
-                if ignorar:
-                    continue
-
-                # TEXTO DE LÍNEA
                 linea_texto = ""
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
@@ -143,35 +162,16 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
                     continue
 
-                if "P14 TOTAL PLAY" not in linea_mayus:
-                    if any(p in linea_mayus for p in [
-                        "SALDO","OPERACION","OPERACIÓN",
-                        "LIQUIDACION","LIQUIDACIÓN","TOTAL"
-                    ]):
-                        continue
-
                 key = (t, round(top, 1), round(x0, 1))
                 if key in montos_usados:
                     continue
 
-                contiene_codigo = (
-                    any(c in linea_mayus for c in [
-                        "P14","V44","V47","V43","T93",
-                        "V41","K65","V40","T92","K64","C48"
-                    ])
-                    or "P14 TOTAL PLAY" in linea_mayus
-                )
-
-                es_primer_monto = any(
-                    abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
-                )
+                contiene_codigo = any(c in linea_mayus for c in [
+                    "P14","T93","V41","K65","V40","T92","K64"
+                ]) or "P14 TOTAL PLAY" in linea_mayus
 
                 # CARGOS
-                if (
-                    (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
-                    or (contiene_codigo and es_primer_monto)
-                    or ("P14 TOTAL PLAY" in linea_mayus)
-                ):
+                if X_CARGO_MIN <= x0 <= X_CARGO_MAX or contiene_codigo:
                     can.setFillColorRGB(1, 0, 0)
                     can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1 + 14, y, str(contador_cargos))
@@ -212,38 +212,44 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output_bytes, output_name
 
 # =========================================================
-# HEADER
+# INTERFAZ
 # =========================================================
-st.title("💼 ContaFlow")
-st.subheader("Automatización de Enumeración de Movimientos")
-
-st.divider()
-
-# =========================================================
-# TABS (BANCOS)
-# =========================================================
-tab1, tab2, tab3 = st.tabs(["BBVA Débito", "BBVA Crédito", "Banamex"])
-
 def interfaz_tab(nombre_tab, key):
-    st.markdown(f"### 📄 {nombre_tab}")
-    archivo = st.file_uploader("Sube tu estado de cuenta en PDF", type=["pdf"], key=key)
+    st.markdown(f"### {nombre_tab}")
+    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=key)
 
     if archivo:
-        st.info("Archivo cargado correctamente")
+        st.success("Archivo cargado")
 
-        if st.button("🚀 Procesar archivo", key=f"btn_{key}"):
-            with st.spinner("Procesando movimientos..."):
+        if st.button("Procesar", key=f"btn_{key}"):
+            with st.spinner("Procesando..."):
                 resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
 
-            st.success("Archivo procesado correctamente")
-            st.download_button("⬇️ Descargar resultado", resultado, file_name=nombre)
+            st.success("Listo")
+            st.download_button("Descargar PDF", resultado, file_name=nombre)
 
-# TAB CONTENIDO
+# =========================================================
+# TABS CON LOGOS
+# =========================================================
+tab1, tab2, tab3 = st.tabs(["", "", ""])
+
 with tab1:
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        if os.path.exists("assets/bbva.png"):
+            st.image("assets/bbva.png", width=120)
     interfaz_tab("BBVA Débito", "tdd")
 
 with tab2:
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        if os.path.exists("assets/bbva.png"):
+            st.image("assets/bbva.png", width=120)
     interfaz_tab("BBVA Crédito", "tdc")
 
 with tab3:
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        if os.path.exists("assets/banamex.png"):
+            st.image("assets/banamex.png", width=120)
     interfaz_tab("Banamex", "banamex")
