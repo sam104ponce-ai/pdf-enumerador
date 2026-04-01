@@ -10,79 +10,39 @@ import os
 # CONFIGURACIÓN
 # ===============================
 st.set_page_config(
-    page_title="Sistema de Enumeración de Movimientos",
+    page_title="ContaFlow",
     page_icon="📊",
     layout="centered"
 )
 
 # ===============================
-# ESTILOS EMPRESARIALES
+# HEADER
 # ===============================
-st.markdown("""
-<style>
-body {
-    background-color: #f4f6f9;
-}
-
-.title {
-    font-size: 30px;
-    font-weight: 700;
-    color: #1a2b49;
-    text-align: center;
-}
-
-.subtitle {
-    text-align: center;
-    color: #6c757d;
-    margin-bottom: 25px;
-}
-
-.container-box {
-    background: white;
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.08);
-}
-
-.stButton>button {
-    background-color: #1a2b49;
-    color: white;
-    border-radius: 8px;
-    height: 45px;
-    width: 100%;
-    font-weight: 600;
-}
-
-.stDownloadButton>button {
-    background-color: #0d6efd;
-    color: white;
-    border-radius: 8px;
-    height: 45px;
-    width: 100%;
-    font-weight: 600;
-}
-</style>
-""", unsafe_allow_html=True)
+st.title("🏢 ContaFlow")
+st.caption("Automatiza la revisión de estados de cuenta")
 
 # ===============================
-# HEADER EMPRESARIAL
+# PESTAÑAS
 # ===============================
-st.markdown('<p class="title">📊 Sistema de Enumeración de Movimientos</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Procesamiento automatizado de cargos y abonos en estados de cuenta</p>', unsafe_allow_html=True)
+tab1 = st.tabs(["🏦 BBVA TDD"])[0]
 
 # ===============================
-# CONTENEDOR
+# CONTENIDO TAB BBVA
 # ===============================
-with st.container():
-    st.markdown('<div class="container-box">', unsafe_allow_html=True)
+with tab1:
 
-    st.markdown("### 📁 Cargar archivo")
-    uploaded_file = st.file_uploader("Seleccione un archivo PDF", type="pdf")
+    st.subheader("BBVA - Tarjeta de Débito")
+    st.write("Sube tu estado de cuenta para procesarlo automáticamente")
+
+    uploaded_file = st.file_uploader("Subir PDF BBVA", type="pdf")
 
     if uploaded_file:
 
-        st.info("Procesando archivo, por favor espere...")
+        st.info("Procesando archivo...")
 
+        # ===============================
+        # CONFIG
+        # ===============================
         X_CARGO_MIN, X_CARGO_MAX = 290, 380
         X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
@@ -97,6 +57,9 @@ with st.container():
         contador_cargos = 1
         contador_abonos = 1
 
+        # ===============================
+        # PROCESAR PDF
+        # ===============================
         with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
 
@@ -177,6 +140,9 @@ with st.container():
                         abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
                     )
 
+                    # ===============================
+                    # CARGOS
+                    # ===============================
                     if (
                         (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
                         or (contiene_codigo and es_primer_monto)
@@ -189,6 +155,9 @@ with st.container():
                         montos_usados.add(key)
                         continue
 
+                    # ===============================
+                    # ABONOS
+                    # ===============================
                     if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                         can.setFillColorRGB(1, 0, 0)
                         can.setFont("Helvetica-Bold", 8)
@@ -216,13 +185,11 @@ with st.container():
         writer.write(output)
         output.seek(0)
 
-        st.success("Proceso completado correctamente")
+        st.success("Archivo procesado correctamente")
 
         st.download_button(
-            label="Descargar archivo procesado",
+            label="Descargar PDF ENUMERADO",
             data=output,
             file_name=pdf_final,
             mime="application/pdf"
         )
-
-    st.markdown('</div>', unsafe_allow_html=True)
