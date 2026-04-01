@@ -190,7 +190,12 @@ def procesar_pdf(file_bytes, nombre_archivo):
 # =========================================================
 def interfaz_tab(nombre_tab, key):
     st.markdown(f"### {nombre_tab}")
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=key)
+    
+    archivo = st.file_uploader(
+        "Sube tu PDF",
+        type=["pdf"],
+        key=f"upload_{key}"
+    )
 
     if archivo:
         st.success("Archivo cargado")
@@ -200,10 +205,15 @@ def interfaz_tab(nombre_tab, key):
                 resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
 
             st.success("Listo")
-            st.download_button("Descargar PDF", resultado, file_name=nombre)
+            st.download_button(
+                "Descargar PDF",
+                resultado,
+                file_name=nombre,
+                key=f"download_{key}"
+            )
 
 # =========================================================
-# SELECTOR DE BANCO (PRO)
+# SELECTOR DE BANCO
 # =========================================================
 st.markdown("### 🏦 Selecciona el banco")
 
@@ -225,7 +235,7 @@ def boton_banco(nombre, key, img):
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button(f"Seleccionar {nombre}", key=key):
+    if st.button(f"Seleccionar {nombre}", key=f"select_{key}"):
         st.session_state.banco = key
 
 with col1:
