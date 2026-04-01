@@ -17,11 +17,16 @@ st.set_page_config(page_title="FlowLedger", layout="wide")
 st.markdown("""
 <style>
 .main {background-color: #0b1220;}
-h1 {font-size: 42px !important;}
+h1 {font-size: 42px !important; text-align:center;}
+.sub {text-align:center; color:gray;}
+
 .stButton>button {
+    width:100%;
     background: linear-gradient(90deg, #2563eb, #1d4ed8);
     color: white;
-    border-radius: 10px;
+    border-radius: 12px;
+    height: 50px;
+    font-size:16px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -29,12 +34,8 @@ h1 {font-size: 42px !important;}
 # =========================================================
 # HEADER
 # =========================================================
-st.markdown("""
-<div style='text-align:center'>
-<h1>FlowLedger</h1>
-<p style='color:gray;'>Automatización de Movimientos Bancarios</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<h1>FlowLedger</h1>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Automatización de Movimientos Bancarios</p>", unsafe_allow_html=True)
 
 st.divider()
 
@@ -131,9 +132,9 @@ def interfaz(nombre, key):
     )
 
     if archivo:
-        if st.button("Procesar", key=f"btn_{key}"):
-            resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
-            st.download_button("Descargar", resultado, file_name=nombre)
+        if st.button("Procesar PDF", key=f"btn_{key}"):
+            resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
+            st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
 
 # =========================================================
 # ESTADO
@@ -142,7 +143,7 @@ if "banco" not in st.session_state:
     st.session_state.banco = "tdd"
 
 # =========================================================
-# SELECTOR PREMIUM CON LOGOS
+# SELECTOR DE BANCOS (CLICK DIRECTO)
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -152,18 +153,20 @@ def boton_banco(nombre, key, ruta):
     seleccionado = st.session_state.banco == key
 
     with st.container():
+
+        # Imagen
         if os.path.exists(ruta):
-            st.image(ruta, width=80)
+            st.image(ruta, width=90)
         else:
-            st.warning(f"No existe {ruta}")
+            st.warning(f"No se encontró: {ruta}")
 
-        if seleccionado:
-            st.success(nombre)
-        else:
-            st.write(nombre)
-
-        if st.button("Seleccionar", key=f"btn_{key}"):
+        # 🔥 BOTÓN PRINCIPAL
+        if st.button(nombre, key=f"bank_{key}"):
             st.session_state.banco = key
+
+        # 🔥 INDICADOR VERDE AUTOMÁTICO
+        if seleccionado:
+            st.success(f"{nombre} seleccionado")
 
 with col1:
     boton_banco("BBVA Débito", "tdd", "assets/bbva.png")
@@ -177,7 +180,7 @@ with col3:
 st.divider()
 
 # =========================================================
-# CONTENIDO
+# CONTENIDO DINÁMICO
 # =========================================================
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
