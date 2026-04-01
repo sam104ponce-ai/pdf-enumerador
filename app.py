@@ -120,44 +120,16 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# BASE64 IMG
+# IMAGEN BASE64
 # =========================================================
 def get_base64_image(path):
     if not os.path.exists(path):
-        return ""
+        return None
     with open(path, "rb") as img:
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# CSS TARJETAS CLICKABLE
-# =========================================================
-st.markdown("""
-<style>
-.card-btn button {
-    width: 100%;
-    height: 180px;
-    border-radius: 16px;
-    border: none;
-    background-color: #111827;
-    color: white;
-    font-weight: 600;
-    font-size: 16px;
-    transition: 0.3s;
-}
-.card-btn button:hover {
-    background-color: #1d4ed8;
-    box-shadow: 0 0 15px rgba(37,99,235,0.6);
-    transform: scale(1.03);
-}
-.selected button {
-    background-color: #1d4ed8 !important;
-    box-shadow: 0 0 15px rgba(37,99,235,0.6);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# TARJETAS
+# TARJETAS (CLICK SOLO EN LOGO)
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -165,24 +137,47 @@ col1, col2, col3 = st.columns(3)
 
 def tarjeta(nombre, key, ruta):
     seleccionado = st.session_state.banco == key
-    img = get_base64_image(ruta)
 
-    clase = "card-btn selected" if seleccionado else "card-btn"
+    fondo = "#1d4ed8" if seleccionado else "#111827"
+    borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
+    sombra = "0 0 15px rgba(37,99,235,0.6)" if seleccionado else "none"
 
-    st.markdown(f"<div class='{clase}'>", unsafe_allow_html=True)
+    img_base64 = get_base64_image(ruta)
 
-    if st.button(f"{nombre}", key=f"btn_{key}"):
-        st.session_state.banco = key
-        st.rerun()
+    # TARJETA VISUAL
+    st.markdown(f"""
+    <div style="
+        background:{fondo};
+        padding:20px;
+        border-radius:16px;
+        text-align:center;
+        border:{borde};
+        box-shadow:{sombra};
+    ">
+    """, unsafe_allow_html=True)
 
-    if img:
+    # BOTÓN SOLO EN LOGO
+    if img_base64:
+        if st.button(" ", key=f"logo_{key}"):
+            st.session_state.banco = key
+            st.rerun()
+
         st.markdown(f"""
-        <div style='margin-top:-140px;text-align:center;pointer-events:none;'>
-            <img src="data:image/png;base64,{img}" width="70"><br>
+        <div style='margin-top:-60px; text-align:center; pointer-events:none;'>
+            <img src="data:image/png;base64,{img_base64}" width="80">
         </div>
         """, unsafe_allow_html=True)
+    else:
+        st.write("⚠️ Logo no encontrado")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    # TEXTO
+    st.markdown(f"""
+        <br>
+        <span style="color:white;font-weight:600;font-size:16px;">
+            {nombre}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
