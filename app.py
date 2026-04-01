@@ -1,6 +1,3 @@
-# =========================================================
-# IMPORTACIONES
-# =========================================================
 import streamlit as st
 import pdfplumber
 from reportlab.pdfgen import canvas
@@ -8,20 +5,20 @@ from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import re
 import os
-import tempfile
 
-# =========================================================
-# CONFIGURACIÓN
-# =========================================================
+st.title("📄 Enumerador de PDF (Cargos y Abonos)")
+
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# =========================================================
-# FUNCIÓN PRINCIPAL
-# =========================================================
-def procesar_pdf(pdf_path):
+uploaded_file = st.file_uploader("Sube tu PDF", type="pdf")
+
+if uploaded_file:
+
+    nombre, ext = os.path.splitext(uploaded_file.name)
+    pdf_final = f"{nombre}_ENUMERADO{ext}"
 
     packet = BytesIO()
     can = canvas.Canvas(packet)
@@ -29,7 +26,7 @@ def procesar_pdf(pdf_path):
     contador_cargos = 1
     contador_abonos = 1
 
-    with pdfplumber.open(pdf_path) as pdf:
+    with pdfplumber.open(uploaded_file) as pdf:
         for page in pdf.pages:
 
             words = page.extract_words(use_text_flow=True)
@@ -54,7 +51,6 @@ def procesar_pdf(pdf_path):
                     continue
 
                 linea_montos = []
-
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
                         texto = ww["text"].strip()
@@ -101,7 +97,7 @@ def procesar_pdf(pdf_path):
                 contiene_codigo = (
                     any(c in linea_mayus for c in [
                         "P14","V44","V47","V43","T93",
-                        "V41","K65","V40","T92","K64"
+                        "V41","K65","V40","T92","K64","C48"
                     ])
                     or "P14 TOTAL PLAY" in linea_mayus
                 )
@@ -135,7 +131,7 @@ def procesar_pdf(pdf_path):
     packet.seek(0)
 
     overlay_pdf = PdfReader(packet)
-    base_pdf = PdfReader(pdf_path)
+    base_pdf = PdfReader(uploaded_file)
 
     writer = PdfWriter()
 
@@ -149,32 +145,10 @@ def procesar_pdf(pdf_path):
     writer.write(output)
     output.seek(0)
 
-    return output
+    st.success("✅ PDF procesado correctamente")
 
-# =========================================================
-# INTERFAZ STREAMLIT
-# =========================================================
-st.title("📄 Enumerador de Cargos y Abonos")
-
-archivo = st.file_uploader("Sube tu PDF", type=["pdf"])
-
-if archivo:
-    st.success("Archivo cargado")
-
-    if st.button("Procesar PDF"):
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(archivo.read())
-            ruta = tmp.name
-
-        resultado = procesar_pdf(ruta)
-
-        nombre, ext = os.path.splitext(archivo.name)
-        nombre_final = f"{nombre}_ENUMERADO{ext}"
-
-        st.download_button(
-            label="⬇️ Descargar PDF",
-            data=resultado,
-            file_name=nombre_final,
-            mime="application/pdf"
-        )
+    st.download_button(
+        label="⬇️ Descargar PDF ENUMERADO",
+        data=output,
+        file_name=pdf_final,
+        
