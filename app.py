@@ -12,35 +12,58 @@ import os
 st.set_page_config(page_title="FlowLedger", layout="wide")
 
 # =========================================================
-# CSS PREMIUM
+# ESTADO GLOBAL
 # =========================================================
-st.markdown("""
-<style>
-.main {background-color: #0b1220;}
-h1 {font-size: 42px !important; text-align:center;}
-.sub {text-align:center; color:gray;}
+if "login" not in st.session_state:
+    st.session_state.login = False
 
-.stButton>button {
-    width:100%;
-    background: linear-gradient(90deg, #2563eb, #1d4ed8);
-    color: white;
-    border-radius: 12px;
-    height: 50px;
-    font-size:16px;
-}
-</style>
-""", unsafe_allow_html=True)
+if "banco" not in st.session_state:
+    st.session_state.banco = "tdd"
+
+if "historial" not in st.session_state:
+    st.session_state.historial = []
+
+# =========================================================
+# LOGIN SIMPLE
+# =========================================================
+if not st.session_state.login:
+    st.title("🔐 FlowLedger Login")
+
+    usuario = st.text_input("Usuario")
+    password = st.text_input("Contraseña", type="password")
+
+    if st.button("Ingresar"):
+        if usuario == "admin" and password == "1234":
+            st.session_state.login = True
+            st.rerun()
+        else:
+            st.error("Credenciales incorrectas")
+
+    st.stop()
 
 # =========================================================
 # HEADER
 # =========================================================
-st.markdown("<h1>FlowLedger</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Automatización de Movimientos Bancarios</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</p>", unsafe_allow_html=True)
 
 st.divider()
 
 # =========================================================
-# CONFIG PDF
+# DASHBOARD
+# =========================================================
+st.markdown("### 📊 Dashboard")
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric("PDFs procesados", len(st.session_state.historial))
+col2.metric("Bancos activos", 3)
+col3.metric("Estado", "Activo")
+
+st.divider()
+
+# =========================================================
+# PDF CONFIG
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
@@ -58,7 +81,8 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
-            words = page.extract_words(use_text_flow=True)
+            words = page.extract_words()
+
             if not words:
                 can.showPage()
                 continue
@@ -82,7 +106,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                # CARGOS
                 if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -90,7 +113,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     contador_cargos+=1
                     usados.add(key)
 
-                # ABONOS
                 elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -120,68 +142,67 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# INTERFAZ
-# =========================================================
-def interfaz(nombre, key):
-    st.subheader(nombre)
-
-    archivo = st.file_uploader(
-        "Sube tu PDF",
-        type=["pdf"],
-        key=f"upload_{key}"
-    )
-
-    if archivo:
-        if st.button("Procesar PDF", key=f"btn_{key}"):
-            resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
-            st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
-
-# =========================================================
-# ESTADO
-# =========================================================
-if "banco" not in st.session_state:
-    st.session_state.banco = "tdd"
-
-# =========================================================
-# SELECTOR DE BANCOS (CLICK DIRECTO)
+# SELECTOR TARJETAS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
 col1, col2, col3 = st.columns(3)
 
-def boton_banco(nombre, key, ruta):
+def tarjeta(nombre, key, ruta):
     seleccionado = st.session_state.banco == key
 
-    with st.container():
+    fondo = "#1d4ed8" if seleccionado else "#111827"
+    borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
+    sombra = "0 0 15px rgba(37,99,235,0.6)" if seleccionado else "none"
 
-        # Imagen
-        if os.path.exists(ruta):
-            st.image(ruta, width=90)
-        else:
-            st.warning(f"No se encontró: {ruta}")
+    st.markdown(f"""
+    <div style="
+        background:{fondo};
+        padding:20px;
+        border-radius:16px;
+        text-align:center;
+        border:{borde};
+        box-shadow:{sombra};
+    ">
+        <img src="{ruta}" width="80"><br><br>
+        <span style="color:white;font-weight:600;">
+            {nombre}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
-        # 🔥 BOTÓN PRINCIPAL
-        if st.button(nombre, key=f"bank_{key}"):
-            st.session_state.banco = key
-
-        # 🔥 INDICADOR VERDE AUTOMÁTICO
-        if seleccionado:
-            st.success(f"{nombre} seleccionado")
+    if st.button(nombre, key=f"card_{key}"):
+        st.session_state.banco = key
+        st.rerun()
 
 with col1:
-    boton_banco("BBVA Débito", "tdd", "assets/bbva.png")
+    tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
 
 with col2:
-    boton_banco("BBVA Crédito", "tdc", "assets/bbva.png")
+    tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
 
 with col3:
-    boton_banco("Banamex", "banamex", "assets/banamex.png")
+    tarjeta("Banamex", "banamex", "assets/banamex.png")
 
 st.divider()
 
 # =========================================================
-# CONTENIDO DINÁMICO
+# INTERFAZ
 # =========================================================
+def interfaz(nombre, key):
+    st.subheader(nombre)
+
+    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=f"upload_{key}")
+
+    if archivo:
+        if st.button("Procesar", key=f"btn_{key}"):
+            resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
+
+            # Guardar historial
+            st.session_state.historial.append(nombre_archivo)
+
+            st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
+
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
 
@@ -190,3 +211,12 @@ elif st.session_state.banco == "tdc":
 
 elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
+
+# =========================================================
+# HISTORIAL
+# =========================================================
+st.divider()
+st.markdown("### 📁 Historial")
+
+for h in st.session_state.historial[::-1]:
+    st.write("✔️", h)
