@@ -129,7 +129,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# TARJETAS BANCOS
+# TARJETAS BANCOS (SIN BOTÓN VISIBLE)
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -157,6 +157,7 @@ def tarjeta(nombre, key, ruta):
         text-align:center;
         border:{borde};
         box-shadow:{sombra};
+        cursor:pointer;
     ">
         {img_html}
         <br><br>
@@ -166,7 +167,8 @@ def tarjeta(nombre, key, ruta):
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button(nombre, key=f"card_{key}"):
+    # 🔥 BOTÓN INVISIBLE (SIN TEXTO)
+    if st.button(" ", key=f"card_{key}"):
         st.session_state.banco = key
         st.rerun()
 
