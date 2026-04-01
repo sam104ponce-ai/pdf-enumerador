@@ -29,15 +29,14 @@ st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimie
 st.divider()
 
 # =========================================================
-# DASHBOARD
+# DASHBOARD (SIN ESTADO)
 # =========================================================
 st.markdown("### 📊 Dashboard")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 col1.metric("PDFs procesados", len(st.session_state.historial))
-col2.metric("Bancos activos", 3)
-col3.metric("Estado", "Activo")
+col2.metric("Bancos disponibles", 3)
 
 st.divider()
 
@@ -85,7 +84,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                # CARGOS
                 if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -93,7 +91,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     contador_cargos+=1
                     usados.add(key)
 
-                # ABONOS
                 elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -123,7 +120,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# SELECTOR TARJETAS
+# SELECTOR TARJETAS (CON IMÁGENES REALES)
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -134,27 +131,34 @@ def tarjeta(nombre, key, ruta):
 
     fondo = "#1d4ed8" if seleccionado else "#111827"
     borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
-    sombra = "0 0 15px rgba(37,99,235,0.6)" if seleccionado else "none"
 
-    st.markdown(f"""
-    <div style="
-        background:{fondo};
-        padding:20px;
-        border-radius:16px;
-        text-align:center;
-        border:{borde};
-        box-shadow:{sombra};
-    ">
-        <img src="{ruta}" width="80"><br><br>
-        <span style="color:white;font-weight:600;">
-            {nombre}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container():
 
-    if st.button(nombre, key=f"card_{key}"):
-        st.session_state.banco = key
-        st.rerun()
+        # 🎨 TARJETA
+        st.markdown(f"""
+        <div style="
+            background:{fondo};
+            padding:20px;
+            border-radius:16px;
+            text-align:center;
+            border:{borde};
+        ">
+        """, unsafe_allow_html=True)
+
+        # ✅ IMAGEN CORRECTA
+        if os.path.exists(ruta):
+            st.image(ruta, width=80)
+        else:
+            st.warning(f"No se encontró {ruta}")
+
+        st.markdown(f"<p style='color:white;font-weight:600'>{nombre}</p>", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # 🔥 CLICK
+        if st.button(nombre, key=f"card_{key}"):
+            st.session_state.banco = key
+            st.rerun()
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
@@ -179,7 +183,6 @@ def interfaz(nombre, key):
         if st.button("Procesar", key=f"btn_{key}"):
             resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-            # Guardar historial
             st.session_state.historial.append(nombre_archivo)
 
             st.success("Procesado correctamente")
