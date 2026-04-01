@@ -129,7 +129,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# TARJETAS (CLICK SOLO EN LOGO)
+# TARJETAS BANCOS (SIN BOTÓN VISIBLE)
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -144,7 +144,11 @@ def tarjeta(nombre, key, ruta):
 
     img_base64 = get_base64_image(ruta)
 
-    # TARJETA VISUAL
+    if img_base64:
+        img_html = f'<img src="data:image/png;base64,{img_base64}" width="80">'
+    else:
+        img_html = "<p style='color:red;'>Sin imagen</p>"
+
     st.markdown(f"""
     <div style="
         background:{fondo};
@@ -153,31 +157,20 @@ def tarjeta(nombre, key, ruta):
         text-align:center;
         border:{borde};
         box-shadow:{sombra};
+        cursor:pointer;
     ">
-    """, unsafe_allow_html=True)
-
-    # BOTÓN SOLO EN LOGO
-    if img_base64:
-        if st.button(" ", key=f"logo_{key}"):
-            st.session_state.banco = key
-            st.rerun()
-
-        st.markdown(f"""
-        <div style='margin-top:-60px; text-align:center; pointer-events:none;'>
-            <img src="data:image/png;base64,{img_base64}" width="80">
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.write("⚠️ Logo no encontrado")
-
-    # TEXTO
-    st.markdown(f"""
-        <br>
+        {img_html}
+        <br><br>
         <span style="color:white;font-weight:600;font-size:16px;">
             {nombre}
         </span>
     </div>
     """, unsafe_allow_html=True)
+
+    # 🔥 BOTÓN INVISIBLE (SIN TEXTO)
+    if st.button(" ", key=f"card_{key}"):
+        st.session_state.banco = key
+        st.rerun()
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
@@ -199,18 +192,21 @@ def interfaz(nombre, key):
     archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=f"upload_{key}")
 
     if archivo:
-        if st.button("Procesar", key=f"proc_{key}"):
+        if st.button("Procesar", key=f"btn_{key}"):
             resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
             st.session_state.historial.append(nombre_archivo)
 
             st.success("Procesado correctamente")
+
             st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
 
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
+
 elif st.session_state.banco == "tdc":
     interfaz("BBVA Crédito", "tdc")
+
 elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
 
