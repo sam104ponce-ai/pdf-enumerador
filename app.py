@@ -7,19 +7,27 @@ import re
 import os
 
 # ===============================
-# CONFIGURACIÓN GENERAL
+# CONFIG
 # ===============================
 st.set_page_config(
     page_title="ContaFlow",
     page_icon="📊",
-    layout="centered"
+    layout="wide"
 )
 
-st.title("🏢 ContaFlow")
-st.caption("Automatización de enumeración de movimientos")
+# ===============================
+# SIDEBAR (🔥 PREMIUM)
+# ===============================
+st.sidebar.title("🏢 ContaFlow")
+st.sidebar.caption("Automatización de enumeración de movimientos")
+
+opcion = st.sidebar.radio(
+    "Selecciona banco",
+    ["🏦 BBVA TDD", "💳 BBVA TDC", "🏦 BANAMEX"]
+)
 
 # ===============================
-# FUNCIÓN PROCESADORA
+# FUNCIÓN
 # ===============================
 def procesar_pdf(uploaded_file):
 
@@ -61,9 +69,6 @@ def procesar_pdf(uploaded_file):
                 if top < 120:
                     continue
 
-                # ===============================
-                # MONTOS EN MISMA FILA
-                # ===============================
                 linea_montos = []
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
@@ -77,9 +82,6 @@ def procesar_pdf(uploaded_file):
 
                 linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
 
-                # ===============================
-                # IGNORAR MONTO INTERMEDIO
-                # ===============================
                 ignorar = False
                 if len(linea_montos) >= 3:
                     for i, m in enumerate(linea_montos):
@@ -90,9 +92,6 @@ def procesar_pdf(uploaded_file):
                 if ignorar:
                     continue
 
-                # ===============================
-                # TEXTO COMPLETO DE LA LÍNEA
-                # ===============================
                 linea_texto = ""
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
@@ -100,9 +99,6 @@ def procesar_pdf(uploaded_file):
 
                 linea_mayus = linea_texto.upper()
 
-                # ===============================
-                # FILTROS
-                # ===============================
                 if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
                     continue
 
@@ -117,9 +113,6 @@ def procesar_pdf(uploaded_file):
                 if key in montos_usados:
                     continue
 
-                # ===============================
-                # DETECCIÓN DE CÓDIGOS
-                # ===============================
                 contiene_codigo = (
                     any(c in linea_mayus for c in [
                         "P14","V44","V47","V43","T93",
@@ -132,9 +125,6 @@ def procesar_pdf(uploaded_file):
                     abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
                 )
 
-                # ===============================
-                # CARGOS
-                # ===============================
                 if (
                     (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
                     or (contiene_codigo and es_primer_monto)
@@ -147,9 +137,6 @@ def procesar_pdf(uploaded_file):
                     montos_usados.add(key)
                     continue
 
-                # ===============================
-                # ABONOS
-                # ===============================
                 if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1, 0, 0)
                     can.setFont("Helvetica-Bold", 8)
@@ -179,51 +166,15 @@ def procesar_pdf(uploaded_file):
 
     return output, pdf_final
 
+# ===============================
+# UI PRINCIPAL
+# ===============================
+st.header(opcion)
 
-# ===============================
-# PESTAÑAS
-# ===============================
-tab1, tab2, tab3 = st.tabs([
-    "🏦 BBVA TDD",
-    "💳 BBVA TDC",
-    "🏦 BANAMEX"
-])
+file = st.file_uploader("Subir PDF", type="pdf")
 
-# ===============================
-# BBVA TDD
-# ===============================
-with tab1:
-    st.subheader("BBVA - Débito")
-    file = st.file_uploader("Subir PDF", type="pdf", key="tdd")
-
-    if file:
-        st.info("Procesando...")
-        output, nombre = procesar_pdf(file)
-        st.success("Listo")
-        st.download_button("Descargar PDF ENUMERADO", output, nombre)
-
-# ===============================
-# BBVA TDC
-# ===============================
-with tab2:
-    st.subheader("BBVA - Crédito")
-    file = st.file_uploader("Subir PDF", type="pdf", key="tdc")
-
-    if file:
-        st.info("Procesando...")
-        output, nombre = procesar_pdf(file)
-        st.success("Listo")
-        st.download_button("Descargar PDF ENUMERADO", output, nombre)
-
-# ===============================
-# BANAMEX
-# ===============================
-with tab3:
-    st.subheader("Banamex")
-    file = st.file_uploader("Subir PDF", type="pdf", key="banamex")
-
-    if file:
-        st.info("Procesando...")
-        output, nombre = procesar_pdf(file)
-        st.success("Listo")
-        st.download_button("Descargar PDF ENUMERADO", output, nombre)
+if file:
+    st.info("Procesando...")
+    output, nombre = procesar_pdf(file)
+    st.success("Archivo listo")
+    st.download_button("Descargar PDF ENUMERADO", output, nombre)
