@@ -5,6 +5,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import re
 import os
+import base64
 
 # =========================================================
 # CONFIG
@@ -12,7 +13,7 @@ import os
 st.set_page_config(page_title="FlowLedger", layout="wide")
 
 # =========================================================
-# ESTADO GLOBAL
+# ESTADO
 # =========================================================
 if "banco" not in st.session_state:
     st.session_state.banco = "tdd"
@@ -29,12 +30,11 @@ st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimie
 st.divider()
 
 # =========================================================
-# DASHBOARD (SIN ESTADO)
+# DASHBOARD
 # =========================================================
 st.markdown("### 📊 Dashboard")
 
 col1, col2 = st.columns(2)
-
 col1.metric("PDFs procesados", len(st.session_state.historial))
 col2.metric("Bancos disponibles", 3)
 
@@ -120,7 +120,16 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# SELECTOR TARJETAS (CON IMÁGENES REALES)
+# IMAGEN BASE64
+# =========================================================
+def get_base64_image(path):
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as img:
+        return base64.b64encode(img.read()).decode()
+
+# =========================================================
+# TARJETAS BANCOS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -131,34 +140,35 @@ def tarjeta(nombre, key, ruta):
 
     fondo = "#1d4ed8" if seleccionado else "#111827"
     borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
+    sombra = "0 0 15px rgba(37,99,235,0.6)" if seleccionado else "none"
 
-    with st.container():
+    img_base64 = get_base64_image(ruta)
 
-        # 🎨 TARJETA
-        st.markdown(f"""
-        <div style="
-            background:{fondo};
-            padding:20px;
-            border-radius:16px;
-            text-align:center;
-            border:{borde};
-        ">
-        """, unsafe_allow_html=True)
+    if img_base64:
+        img_html = f'<img src="data:image/png;base64,{img_base64}" width="80">'
+    else:
+        img_html = "<p style='color:red;'>Sin imagen</p>"
 
-        # ✅ IMAGEN CORRECTA
-        if os.path.exists(ruta):
-            st.image(ruta, width=80)
-        else:
-            st.warning(f"No se encontró {ruta}")
+    st.markdown(f"""
+    <div style="
+        background:{fondo};
+        padding:20px;
+        border-radius:16px;
+        text-align:center;
+        border:{borde};
+        box-shadow:{sombra};
+    ">
+        {img_html}
+        <br><br>
+        <span style="color:white;font-weight:600;font-size:16px;">
+            {nombre}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
-        st.markdown(f"<p style='color:white;font-weight:600'>{nombre}</p>", unsafe_allow_html=True)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # 🔥 CLICK
-        if st.button(nombre, key=f"card_{key}"):
-            st.session_state.banco = key
-            st.rerun()
+    if st.button(nombre, key=f"card_{key}"):
+        st.session_state.banco = key
+        st.rerun()
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
