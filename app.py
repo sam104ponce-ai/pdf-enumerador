@@ -14,32 +14,11 @@ st.set_page_config(page_title="FlowLedger", layout="wide")
 # =========================================================
 # ESTADO GLOBAL
 # =========================================================
-if "login" not in st.session_state:
-    st.session_state.login = False
-
 if "banco" not in st.session_state:
     st.session_state.banco = "tdd"
 
 if "historial" not in st.session_state:
     st.session_state.historial = []
-
-# =========================================================
-# LOGIN SIMPLE
-# =========================================================
-if not st.session_state.login:
-    st.title("🔐 FlowLedger Login")
-
-    usuario = st.text_input("Usuario")
-    password = st.text_input("Contraseña", type="password")
-
-    if st.button("Ingresar"):
-        if usuario == "admin" and password == "1234":
-            st.session_state.login = True
-            st.rerun()
-        else:
-            st.error("Credenciales incorrectas")
-
-    st.stop()
 
 # =========================================================
 # HEADER
@@ -63,7 +42,7 @@ col3.metric("Estado", "Activo")
 st.divider()
 
 # =========================================================
-# PDF CONFIG
+# CONFIG PDF
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
@@ -106,6 +85,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
+                # CARGOS
                 if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -113,6 +93,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     contador_cargos+=1
                     usados.add(key)
 
+                # ABONOS
                 elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -200,6 +181,8 @@ def interfaz(nombre, key):
 
             # Guardar historial
             st.session_state.historial.append(nombre_archivo)
+
+            st.success("Procesado correctamente")
 
             st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
 
