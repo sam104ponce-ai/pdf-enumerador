@@ -7,10 +7,68 @@ import re
 import os
 
 # =========================================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN GENERAL
 # =========================================================
-st.set_page_config(page_title="Enumerador de Movimientos", layout="wide")
+st.set_page_config(
+    page_title="ContaFlow",
+    page_icon="💼",
+    layout="wide"
+)
 
+# =========================================================
+# ESTILOS PREMIUM (CSS)
+# =========================================================
+st.markdown("""
+<style>
+.main {
+    background-color: #0e1117;
+}
+h1, h2, h3 {
+    color: #ffffff;
+}
+.stButton>button {
+    background-color: #2563eb;
+    color: white;
+    border-radius: 10px;
+    height: 3em;
+    width: 100%;
+    font-size: 16px;
+}
+.stDownloadButton>button {
+    background-color: #16a34a;
+    color: white;
+    border-radius: 10px;
+    height: 3em;
+    width: 100%;
+}
+.css-1d391kg {
+    background-color: #111827;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# SIDEBAR (MARCA)
+# =========================================================
+with st.sidebar:
+    st.title("💼 ContaFlow")
+    st.markdown("### Automatización de Enumeración de Movimientos")
+    
+    st.divider()
+    
+    st.markdown("### 🏦 Bancos disponibles")
+    st.markdown("- BBVA Débito")
+    st.markdown("- BBVA Crédito")
+    st.markdown("- Banamex")
+    
+    st.divider()
+    
+    st.markdown("### ⚙️ Estado")
+    st.success("Sistema activo")
+
+# =========================================================
+# CONFIGURACIÓN PDF
+# =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
@@ -50,9 +108,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if top < 120:
                     continue
 
-                # =========================
                 # MONTOS EN LA MISMA FILA
-                # =========================
                 linea_montos = []
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
@@ -76,9 +132,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if ignorar:
                     continue
 
-                # =========================
                 # TEXTO DE LÍNEA
-                # =========================
                 linea_texto = ""
                 for ww in words:
                     if abs(float(ww["top"]) - top) < 3:
@@ -91,8 +145,8 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 if "P14 TOTAL PLAY" not in linea_mayus:
                     if any(p in linea_mayus for p in [
-                        "SALDO", "OPERACION", "OPERACIÓN",
-                        "LIQUIDACION", "LIQUIDACIÓN", "TOTAL"
+                        "SALDO","OPERACION","OPERACIÓN",
+                        "LIQUIDACION","LIQUIDACIÓN","TOTAL"
                     ]):
                         continue
 
@@ -100,9 +154,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in montos_usados:
                     continue
 
-                # =========================
-                # CÓDIGOS
-                # =========================
                 contiene_codigo = (
                     any(c in linea_mayus for c in [
                         "P14","V44","V47","V43","T93",
@@ -115,9 +166,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
                 )
 
-                # =========================
                 # CARGOS
-                # =========================
                 if (
                     (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
                     or (contiene_codigo and es_primer_monto)
@@ -130,9 +179,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     montos_usados.add(key)
                     continue
 
-                # =========================
                 # ABONOS
-                # =========================
                 if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1, 0, 0)
                     can.setFont("Helvetica-Bold", 8)
@@ -164,61 +211,39 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
     return output_bytes, output_name
 
+# =========================================================
+# HEADER
+# =========================================================
+st.title("💼 ContaFlow")
+st.subheader("Automatización de Enumeración de Movimientos")
+
+st.divider()
 
 # =========================================================
-# UI
+# TABS (BANCOS)
 # =========================================================
-st.title("AUTOMATIZACIÓN DE ENUMERACIÓN DE MOVIMIENTOS")
+tab1, tab2, tab3 = st.tabs(["BBVA Débito", "BBVA Crédito", "Banamex"])
 
-tab1, tab2, tab3 = st.tabs(["BBVA TDD", "BBVA TDC", "BANAMEX"])
+def interfaz_tab(nombre_tab, key):
+    st.markdown(f"### 📄 {nombre_tab}")
+    archivo = st.file_uploader("Sube tu estado de cuenta en PDF", type=["pdf"], key=key)
 
-# =========================================================
-# TAB 1
-# =========================================================
+    if archivo:
+        st.info("Archivo cargado correctamente")
+
+        if st.button("🚀 Procesar archivo", key=f"btn_{key}"):
+            with st.spinner("Procesando movimientos..."):
+                resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
+
+            st.success("Archivo procesado correctamente")
+            st.download_button("⬇️ Descargar resultado", resultado, file_name=nombre)
+
+# TAB CONTENIDO
 with tab1:
-    st.image("assets/bbva.png", width=120)
-    st.subheader("BBVA Débito")
+    interfaz_tab("BBVA Débito", "tdd")
 
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key="tdd")
-
-    if archivo:
-        if st.button("Procesar", key="btn1"):
-            with st.spinner("Procesando..."):
-                resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
-
-            st.success("Listo ✅")
-            st.download_button("Descargar PDF", resultado, file_name=nombre)
-
-# =========================================================
-# TAB 2
-# =========================================================
 with tab2:
-    st.image("assets/bbva.png", width=120)
-    st.subheader("BBVA Crédito")
+    interfaz_tab("BBVA Crédito", "tdc")
 
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key="tdc")
-
-    if archivo:
-        if st.button("Procesar", key="btn2"):
-            with st.spinner("Procesando..."):
-                resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
-
-            st.success("Listo ✅")
-            st.download_button("Descargar PDF", resultado, file_name=nombre)
-
-# =========================================================
-# TAB 3
-# =========================================================
 with tab3:
-    st.image("assets/banamex.png", width=120)
-    st.subheader("Banamex")
-
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key="banamex")
-
-    if archivo:
-        if st.button("Procesar", key="btn3"):
-            with st.spinner("Procesando..."):
-                resultado, nombre = procesar_pdf(archivo.read(), archivo.name)
-
-            st.success("Listo ✅")
-            st.download_button("Descargar PDF", resultado, file_name=nombre)
+    interfaz_tab("Banamex", "banamex")
