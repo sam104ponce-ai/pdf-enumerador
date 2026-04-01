@@ -49,32 +49,26 @@ h1 {
 with st.sidebar:
     st.title("FlowLedger")
     st.caption("Sistema de automatización financiera")
-
     st.divider()
-
     st.markdown("### 🏦 Bancos")
     st.markdown("BBVA Débito")
     st.markdown("BBVA Crédito")
     st.markdown("Banamex")
-
     st.divider()
-
     st.success("Sistema activo")
 
 # =========================================================
-# HEADER PREMIUM
+# HEADER
 # =========================================================
 st.markdown("""
-<div style='text-align: center; padding-top: 20px; padding-bottom: 10px;'>
+<div style='text-align: center; padding-top: 20px;'>
     <h1>FlowLedger</h1>
-    <p style='font-size: 18px; color: #9ca3af;'>
-        Automatización de Movimientos Bancarios
-    </p>
+    <p style='color:#9ca3af;'>Automatización de Movimientos Bancarios</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div style='width: 120px; height: 4px; background: linear-gradient(90deg, #2563eb, #1d4ed8); margin: auto; border-radius: 10px;'></div>
+<div style='width:120px;height:4px;background:linear-gradient(90deg,#2563eb,#1d4ed8);margin:auto;border-radius:10px;'></div>
 """, unsafe_allow_html=True)
 
 st.divider()
@@ -86,29 +80,9 @@ st.markdown("### 📊 Panel de Control")
 
 col1, col2, col3 = st.columns(3)
 
-with col1:
-    st.markdown("""
-    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
-        <h3>📄 PDFs procesados</h3>
-        <h2>0</h2>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
-        <h3>🏦 Bancos activos</h3>
-        <h2>3</h2>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div style='background-color:#111827;padding:20px;border-radius:12px;text-align:center;'>
-        <h3>⚡ Estado</h3>
-        <h2 style='color:#16a34a;'>Activo</h2>
-    </div>
-    """, unsafe_allow_html=True)
+col1.markdown("<div style='background:#111827;padding:20px;border-radius:12px;text-align:center;'><h3>📄 PDFs</h3><h2>0</h2></div>", unsafe_allow_html=True)
+col2.markdown("<div style='background:#111827;padding:20px;border-radius:12px;text-align:center;'><h3>🏦 Bancos</h3><h2>3</h2></div>", unsafe_allow_html=True)
+col3.markdown("<div style='background:#111827;padding:20px;border-radius:12px;text-align:center;'><h3>⚡ Estado</h3><h2 style='color:#16a34a;'>Activo</h2></div>", unsafe_allow_html=True)
 
 st.divider()
 
@@ -229,27 +203,53 @@ def interfaz_tab(nombre_tab, key):
             st.download_button("Descargar PDF", resultado, file_name=nombre)
 
 # =========================================================
-# TABS CON LOGOS
+# SELECTOR DE BANCO (PRO)
 # =========================================================
-tab1, tab2, tab3 = st.tabs(["", "", ""])
+st.markdown("### 🏦 Selecciona el banco")
 
-with tab1:
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        if os.path.exists("assets/bbva.png"):
-            st.image("assets/bbva.png", width=120)
+if "banco" not in st.session_state:
+    st.session_state.banco = "tdd"
+
+col1, col2, col3 = st.columns(3)
+
+def boton_banco(nombre, key, img):
+    seleccionado = st.session_state.banco == key
+
+    color = "#1d4ed8" if seleccionado else "#111827"
+    borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
+
+    st.markdown(f"""
+    <div style='background:{color};padding:15px;border-radius:12px;text-align:center;border:{borde};'>
+        <img src="{img}" width="80"><br>
+        <span style='color:white;font-weight:600;'>{nombre}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button(f"Seleccionar {nombre}", key=key):
+        st.session_state.banco = key
+
+with col1:
+    if os.path.exists("assets/bbva.png"):
+        boton_banco("BBVA Débito", "tdd", "assets/bbva.png")
+
+with col2:
+    if os.path.exists("assets/bbva.png"):
+        boton_banco("BBVA Crédito", "tdc", "assets/bbva.png")
+
+with col3:
+    if os.path.exists("assets/banamex.png"):
+        boton_banco("Banamex", "banamex", "assets/banamex.png")
+
+st.divider()
+
+# =========================================================
+# CONTENIDO DINÁMICO
+# =========================================================
+if st.session_state.banco == "tdd":
     interfaz_tab("BBVA Débito", "tdd")
 
-with tab2:
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        if os.path.exists("assets/bbva.png"):
-            st.image("assets/bbva.png", width=120)
+elif st.session_state.banco == "tdc":
     interfaz_tab("BBVA Crédito", "tdc")
 
-with tab3:
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        if os.path.exists("assets/banamex.png"):
-            st.image("assets/banamex.png", width=120)
+elif st.session_state.banco == "banamex":
     interfaz_tab("Banamex", "banamex")
