@@ -39,14 +39,14 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS (LOGO MÁS PEQUEÑO)
+# ESTILOS 🔥 NUEVOS
 # =========================================================
 st.markdown("""
 <style>
 .card {
     background-color: #0f172a;
-    border-radius: 20px;
-    padding: 40px 10px 20px 10px;
+    border-radius: 18px;
+    padding: 25px 10px 12px 10px; /* 🔽 más compacta */
     text-align: center;
     color: white;
     border: 2px solid transparent;
@@ -56,23 +56,28 @@ st.markdown("""
 
 .card.selected {
     border: 2px solid #22c55e;
-    box-shadow: 0 0 15px #22c55e;
+    box-shadow: 0 0 12px #22c55e;
 }
 
 .logo {
     position: absolute;
-    top: -22px;  /* 🔥 ajustado */
+    top: -26px;
     left: 50%;
     transform: translateX(-50%);
     background: white;
-    border-radius: 12px;
+    border-radius: 10px;
     padding: 4px;
+}
+
+.card h2 {
+    font-size: 16px; /* 🔽 texto más pequeño */
+    margin-top: 18px;
 }
 
 .radio-container {
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -114,9 +119,9 @@ def tarjeta(nombre, key, ruta):
     st.markdown(f"""
     <div class="card {selected}">
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="45"> <!-- 🔥 más pequeño -->
+            <img src="data:image/png;base64,{img}" width="60"> <!-- 🔼 logo más grande -->
         </div>
-        <h2 style="margin-top:25px;">{nombre}</h2>
+        <h2>{nombre}</h2>
     </div>
     """, unsafe_allow_html=True)
 
@@ -172,7 +177,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
 
-                # Detecta cualquier código tipo C48, K65, etc
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
                     if patron_monto.match(t):
                         can.setFont("Helvetica-Bold", 8)
