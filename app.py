@@ -309,4 +309,4 @@ else:
                 st.session_state.historial.pop(index_real)
 
                 guardar_historial(st.session_state.historial)
-                st.rerun()v
+                st.rerun()
