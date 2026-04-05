@@ -13,6 +13,12 @@ import base64
 st.set_page_config(page_title="FlowLedger", layout="wide")
 
 # =========================================================
+# CARPETA HISTORIAL
+# =========================================================
+if not os.path.exists("historial"):
+    os.makedirs("historial")
+
+# =========================================================
 # ESTADO
 # =========================================================
 if "banco" not in st.session_state:
@@ -30,7 +36,7 @@ st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimie
 st.divider()
 
 # =========================================================
-# FUNCION IMAGEN
+# IMÁGENES
 # =========================================================
 def get_base64_image(path):
     if not os.path.exists(path):
@@ -39,7 +45,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS PREMIUM
+# ESTILOS (NO SE TOCARON)
 # =========================================================
 st.markdown("""
 <style>
@@ -53,12 +59,10 @@ st.markdown("""
     transition: 0.3s;
     position: relative;
 }
-
 .card.selected {
     border: 2px solid #22c55e;
     box-shadow: 0 0 12px #22c55e;
 }
-
 .logo {
     position: absolute;
     top: -26px;
@@ -68,12 +72,10 @@ st.markdown("""
     border-radius: 10px;
     padding: 4px;
 }
-
 .card h2 {
-    font-size: 16px;
+    font-size: 14px;
     margin-top: 18px;
 }
-
 .radio-container {
     display: flex;
     justify-content: center;
@@ -83,12 +85,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# TÍTULO ARRIBA 🔥
+# TÍTULO
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
 # =========================================================
-# SELECCIÓN ÚNICA
+# SELECCIÓN
 # =========================================================
 opciones = {
     "BBVA Débito": "tdd",
@@ -122,7 +124,7 @@ def tarjeta(nombre, key, ruta):
     st.markdown(f"""
     <div class="card {selected}">
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="60">
+            <img src="data:image/png;base64,{img}" width="70">
         </div>
         <h2>{nombre}</h2>
     </div>
@@ -180,6 +182,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
 
+                # 🔥 DETECTA CUALQUIER CÓDIGO TIPO C48, K65, etc.
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
                     if patron_monto.match(t):
                         can.setFont("Helvetica-Bold", 8)
@@ -238,21 +241,55 @@ if st.session_state.banco:
 
         for archivo in archivos:
             if st.button(f"Procesar {archivo.name}"):
+
                 resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-                st.session_state.historial.append(nombre_archivo)
+                # 💾 GUARDAR EN DISCO
+                ruta = f"historial/{nombre_archivo}"
+                with open(ruta, "wb") as f:
+                    f.write(resultado.getbuffer())
+
+                # 🧠 GUARDAR EN MEMORIA
+                st.session_state.historial.append({
+                    "nombre": nombre_archivo,
+                    "ruta": ruta
+                })
 
                 st.success(f"{archivo.name} listo")
                 st.download_button("Descargar", resultado, file_name=nombre_archivo)
 
 # =========================================================
-# HISTORIAL
+# HISTORIAL PRO
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
 
 if st.session_state.historial:
-    for item in reversed(st.session_state.historial):
-        st.write("📄", item)
+
+    for i, item in enumerate(reversed(st.session_state.historial)):
+
+        col1, col2, col3 = st.columns([6,1,1])
+
+        with col1:
+            st.write("📄", item["nombre"])
+
+        with col2:
+            with open(item["ruta"], "rb") as f:
+                st.download_button(
+                    "⬇️",
+                    f,
+                    file_name=item["nombre"],
+                    key=f"down_{i}"
+                )
+
+        with col3:
+            if st.button("🗑️", key=f"del_{i}"):
+
+                if os.path.exists(item["ruta"]):
+                    os.remove(item["ruta"])
+
+                st.session_state.historial.remove(item)
+                st.rerun()
+
 else:
     st.info("Aún no hay archivos procesados")
