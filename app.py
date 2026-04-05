@@ -6,11 +6,30 @@ from io import BytesIO
 import re
 import os
 import base64
+import json
 
 # =========================================================
 # CONFIG
 # =========================================================
 st.set_page_config(page_title="FlowLedger", layout="wide")
+
+# =========================================================
+# ARCHIVOS PERMANENTES
+# =========================================================
+HISTORIAL_FILE = "historial.json"
+CARPETA_PDFS = "historial"
+
+os.makedirs(CARPETA_PDFS, exist_ok=True)
+
+def cargar_historial():
+    if os.path.exists(HISTORIAL_FILE):
+        with open(HISTORIAL_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def guardar_historial(data):
+    with open(HISTORIAL_FILE, "w") as f:
+        json.dump(data, f)
 
 # =========================================================
 # ESTADO
@@ -19,7 +38,7 @@ if "banco" not in st.session_state:
     st.session_state.banco = "tdd"
 
 if "historial" not in st.session_state:
-    st.session_state.historial = []
+    st.session_state.historial = cargar_historial()
 
 # =========================================================
 # HEADER
@@ -47,7 +66,6 @@ X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
-
 CODIGOS_CARGO = ["C48", "K65"]
 
 # =========================================================
@@ -87,7 +105,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                # AGRUPAR FILA
                 linea_texto = ""
                 linea_palabras = []
 
@@ -98,8 +115,8 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea_mayus = linea_texto.upper()
 
-                # CÓDIGOS C48 / K65
-                if any(codigo in linea_mayus for codigo in CODIGOS_CARGO):
+                # C48 / K65
+                if any(c in linea_mayus for c in CODIGOS_CARGO):
 
                     for ww in linea_palabras:
                         texto = ww["text"].strip()
@@ -124,7 +141,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             usados.add(key_cod)
                             break
 
-                # CARGOS
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -132,7 +148,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     contador_cargos+=1
                     usados.add(key)
 
-                # ABONOS
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -159,7 +174,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
     writer.write(output)
     output.seek(0)
 
-    return output, f"{nombre_archivo}_ENUMERADO.pdf"
+    return output
 
 # =========================================================
 # IMÁGENES
@@ -173,21 +188,6 @@ def get_base64_image(path):
 # =========================================================
 # UI TARJETAS
 # =========================================================
-st.markdown("""
-<style>
-div.stButton > button {
-    width: 100%;
-    height: 150px;
-    border-radius: 16px;
-    background-color: #111827;
-    color: white;
-    font-size: 16px;
-    font-weight: 600;
-    border: 1px solid #374151;
-}
-</style>
-""", unsafe_allow_html=True)
-
 st.markdown("## 🏦 Bancos")
 
 col1, col2, col3 = st.columns(3)
@@ -208,10 +208,8 @@ def tarjeta(nombre, key, ruta):
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
-
 with col2:
     tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
-
 with col3:
     tarjeta("Banamex", "banamex", "assets/banamex.png")
 
@@ -227,16 +225,26 @@ def interfaz(nombre, key):
 
     if archivo:
         if st.button("Procesar", key=f"proc_{key}"):
-            resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-            # 🔥 GUARDAR BIEN EL HISTORIAL
+            resultado = procesar_pdf(archivo.read(), archivo.name)
+
+            nombre_final = archivo.name.replace(".pdf", "_ENUMERADO.pdf")
+            ruta = os.path.join(CARPETA_PDFS, nombre_final)
+
+            with open(ruta, "wb") as f:
+                f.write(resultado.getvalue())
+
+            # guardar en historial
             st.session_state.historial.append({
-                "nombre": nombre_archivo,
-                "archivo": resultado.getvalue()
+                "nombre": nombre_final,
+                "ruta": ruta
             })
 
+            guardar_historial(st.session_state.historial)
+
             st.success("Procesado correctamente")
-            st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
+
+            st.download_button("Descargar PDF", resultado, file_name=nombre_final)
 
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
@@ -246,30 +254,34 @@ elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
 
 # =========================================================
-# HISTORIAL PRO
+# HISTORIAL PERMANENTE
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
 
 if not st.session_state.historial:
-    st.info("Aún no hay archivos procesados")
+    st.info("Aún no hay archivos")
 else:
     for i, item in enumerate(st.session_state.historial[::-1]):
+
         col1, col2, col3 = st.columns([5,2,2])
 
         with col1:
             st.write("📄", item["nombre"])
 
         with col2:
-            st.download_button(
-                "⬇️ Descargar",
-                data=item["archivo"],
-                file_name=item["nombre"],
-                key=f"download_{i}"
-            )
+            with open(item["ruta"], "rb") as f:
+                st.download_button(
+                    "⬇️ Descargar",
+                    f,
+                    file_name=item["nombre"],
+                    key=f"d_{i}"
+                )
 
         with col3:
-            if st.button("🗑️ Borrar", key=f"delete_{i}"):
+            if st.button("🗑️ Borrar", key=f"del_{i}"):
+                os.remove(item["ruta"])
                 index_real = len(st.session_state.historial) - 1 - i
                 st.session_state.historial.pop(index_real)
+                guardar_historial(st.session_state.historial)
                 st.rerun()
