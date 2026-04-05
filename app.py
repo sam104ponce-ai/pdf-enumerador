@@ -45,7 +45,12 @@ st.divider()
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
+
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
+
+# 🔥 NUEVO: detectar C48
+def es_cargo_extra(texto):
+    return "C48" in texto
 
 # =========================================================
 # PROCESAR PDF
@@ -67,10 +72,8 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
             usados = set()
 
-            for w in words:
+            for i, w in enumerate(words):
                 t = w["text"].strip()
-                if not patron_monto.match(t):
-                    continue
 
                 x0 = float(w["x0"])
                 x1 = float(w["x1"])
@@ -84,18 +87,28 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                # 🔥 CARGO NORMAL
+                if patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
                     can.drawRightString(x1+15,y,str(contador_cargos))
                     contador_cargos+=1
                     usados.add(key)
 
-                elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                # 🔥 ABONO
+                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
                     can.drawRightString(x1+15,y,str(contador_abonos))
                     contador_abonos+=1
+                    usados.add(key)
+
+                # 🔥 NUEVO: C48 como cargo
+                elif es_cargo_extra(t):
+                    can.setFillColorRGB(1,0,0)
+                    can.setFont("Helvetica-Bold",8)
+                    can.drawRightString(x1+15,y,str(contador_cargos))
+                    contador_cargos+=1
                     usados.add(key)
 
             can.showPage()
@@ -120,57 +133,58 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# IMAGEN BASE64
+# BASE64 IMG
 # =========================================================
 def get_base64_image(path):
     if not os.path.exists(path):
-        return None
+        return ""
     with open(path, "rb") as img:
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# TARJETAS BANCOS (SIN BOTÓN VISIBLE)
+# CSS TARJETAS (BOTÓN = TARJETA)
+# =========================================================
+st.markdown("""
+<style>
+div.stButton > button {
+    width: 100%;
+    height: 160px;
+    border-radius: 16px;
+    background-color: #111827;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    border: 1px solid #374151;
+    transition: 0.3s;
+}
+div.stButton > button:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 0 15px rgba(37,99,235,0.6);
+    transform: scale(1.03);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TARJETAS CLICKABLES
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
 col1, col2, col3 = st.columns(3)
 
 def tarjeta(nombre, key, ruta):
-    seleccionado = st.session_state.banco == key
+    img = get_base64_image(ruta)
 
-    fondo = "#1d4ed8" if seleccionado else "#111827"
-    borde = "2px solid #2563eb" if seleccionado else "1px solid #374151"
-    sombra = "0 0 15px rgba(37,99,235,0.6)" if seleccionado else "none"
-
-    img_base64 = get_base64_image(ruta)
-
-    if img_base64:
-        img_html = f'<img src="data:image/png;base64,{img_base64}" width="80">'
-    else:
-        img_html = "<p style='color:red;'>Sin imagen</p>"
-
-    st.markdown(f"""
-    <div style="
-        background:{fondo};
-        padding:20px;
-        border-radius:16px;
-        text-align:center;
-        border:{borde};
-        box-shadow:{sombra};
-        cursor:pointer;
-    ">
-        {img_html}
-        <br><br>
-        <span style="color:white;font-weight:600;font-size:16px;">
-            {nombre}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 🔥 BOTÓN INVISIBLE (SIN TEXTO)
-    if st.button(" ", key=f"card_{key}"):
+    if st.button(nombre, key=f"bank_{key}"):
         st.session_state.banco = key
         st.rerun()
+
+    if img:
+        st.markdown(f"""
+        <div style='margin-top:-120px;text-align:center;pointer-events:none;'>
+            <img src="data:image/png;base64,{img}" width="70">
+        </div>
+        """, unsafe_allow_html=True)
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
@@ -192,21 +206,18 @@ def interfaz(nombre, key):
     archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=f"upload_{key}")
 
     if archivo:
-        if st.button("Procesar", key=f"btn_{key}"):
+        if st.button("Procesar", key=f"proc_{key}"):
             resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
             st.session_state.historial.append(nombre_archivo)
 
             st.success("Procesado correctamente")
-
             st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
 
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
-
 elif st.session_state.banco == "tdc":
     interfaz("BBVA Crédito", "tdc")
-
 elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
 
