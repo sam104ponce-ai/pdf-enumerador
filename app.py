@@ -49,15 +49,9 @@ st.markdown("""
     padding: 40px 10px 20px 10px;
     text-align: center;
     color: white;
-    cursor: pointer;
     border: 2px solid transparent;
     transition: 0.3s;
     position: relative;
-}
-
-.card:hover {
-    transform: scale(1.04);
-    border: 2px solid #2563eb;
 }
 
 .card.selected {
@@ -74,19 +68,34 @@ st.markdown("""
     border-radius: 12px;
     padding: 6px;
 }
+
+.radio-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: -10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# FUNCION TARJETA (CLICK REAL)
+# TARJETA CON CÍRCULO
 # =========================================================
 def tarjeta(nombre, key, ruta):
     img = get_base64_image(ruta)
-    selected = "selected" if st.session_state.banco == key else ""
 
-    if st.button("", key=f"btn_{key}"):
+    st.markdown('<div class="radio-container">', unsafe_allow_html=True)
+    seleccionado = st.radio(
+        label="",
+        options=[key],
+        index=0 if st.session_state.banco == key else None,
+        key=f"radio_{key}"
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if seleccionado:
         st.session_state.banco = key
-        st.rerun()
+
+    selected = "selected" if st.session_state.banco == key else ""
 
     st.markdown(f"""
     <div class="card {selected}">
@@ -156,7 +165,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
 
-                # Detecta cualquier código tipo C48, K65, etc
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
                     if patron_monto.match(t):
                         can.setFont("Helvetica-Bold", 8)
