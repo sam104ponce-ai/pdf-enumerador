@@ -1,6 +1,7 @@
 import streamlit as st
 import pdfplumber
 from reportlab.pdfgen import canvas
+from reportlab.lib.colors import red
 from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import re
@@ -73,7 +74,7 @@ st.markdown("""
     padding: 4px;
 }
 .card h2 {
-    font-size: 14px;
+    font-size: 13px;
     margin-top: 18px;
 }
 .radio-container {
@@ -121,7 +122,7 @@ def tarjeta(nombre, key, ruta):
     st.markdown(f"""
     <div class="card {selected}">
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="70">
+            <img src="data:image/png;base64,{img}" width="85">
         </div>
         <h2>{nombre}</h2>
     </div>
@@ -147,7 +148,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (CORREGIDO)
+# PROCESAR PDF (CON ROJO 🔴)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -155,6 +156,8 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
     contador_cargos = 1
     contador_abonos = 1
+
+    can.setFillColor(red)  # 🔴 COLOR GLOBAL
 
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
@@ -182,7 +185,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     if abs(float(ww["top"]) - top) < 3
                 ]).upper()
 
-                # 🔥 DETECTAR CÓDIGOS PERO RESPETANDO COLUMNAS
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
 
                     if patron_monto.match(t):
@@ -199,14 +201,12 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             contador_abonos += 1
                             usados.add(key)
 
-                # CARGOS NORMALES
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_cargos))
                     contador_cargos += 1
                     usados.add(key)
 
-                # ABONOS
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_abonos))
@@ -268,7 +268,7 @@ if st.session_state.banco:
                 st.download_button("Descargar", resultado, file_name=nombre_archivo)
 
 # =========================================================
-# HISTORIAL CORREGIDO
+# HISTORIAL
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
@@ -277,13 +277,8 @@ if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        # 🔥 COMPATIBLE CON FORMATO VIEJO
-        if isinstance(item, str):
-            nombre = item
-            ruta = f"historial/{item}"
-        else:
-            nombre = item["nombre"]
-            ruta = item["ruta"]
+        nombre = item["nombre"] if isinstance(item, dict) else item
+        ruta = item["ruta"] if isinstance(item, dict) else f"historial/{item}"
 
         col1, col2, col3 = st.columns([6,1,1])
 
@@ -293,19 +288,12 @@ if st.session_state.historial:
         with col2:
             if os.path.exists(ruta):
                 with open(ruta, "rb") as f:
-                    st.download_button(
-                        "⬇️",
-                        f,
-                        file_name=nombre,
-                        key=f"down_{i}"
-                    )
+                    st.download_button("⬇️", f, file_name=nombre, key=f"d{i}")
 
         with col3:
-            if st.button("🗑️", key=f"del_{i}"):
-
+            if st.button("🗑️", key=f"x{i}"):
                 if os.path.exists(ruta):
                     os.remove(ruta)
-
                 st.session_state.historial.remove(item)
                 st.rerun()
 
