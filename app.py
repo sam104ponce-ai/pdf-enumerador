@@ -48,7 +48,6 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# 🔥 CÓDIGOS QUE SE CONSIDERAN CARGO
 CODIGOS_CARGO = ["C48", "K65"]
 
 # =========================================================
@@ -79,7 +78,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 top = float(w["top"])
                 bottom = float(w["bottom"])
 
-                # 🔥 ALINEACIÓN PERFECTA
                 y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
@@ -89,9 +87,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                # =========================================================
                 # AGRUPAR FILA
-                # =========================================================
                 linea_texto = ""
                 linea_palabras = []
 
@@ -102,9 +98,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea_mayus = linea_texto.upper()
 
-                # =========================================================
-                # 🔥 CÓDIGOS (C48, K65) COMO CARGO
-                # =========================================================
+                # CÓDIGOS C48 / K65
                 if any(codigo in linea_mayus for codigo in CODIGOS_CARGO):
 
                     for ww in linea_palabras:
@@ -118,7 +112,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             if key_cod in usados:
                                 continue
 
-                            # alineación exacta del monto
                             top_m = float(ww["top"])
                             bottom_m = float(ww["bottom"])
                             y_m = page.height - ((top_m + bottom_m) / 2) - 1
@@ -131,9 +124,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             usados.add(key_cod)
                             break
 
-                # =========================================================
-                # CARGOS NORMALES
-                # =========================================================
+                # CARGOS
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -141,9 +132,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     contador_cargos+=1
                     usados.add(key)
 
-                # =========================================================
                 # ABONOS
-                # =========================================================
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
@@ -240,7 +229,11 @@ def interfaz(nombre, key):
         if st.button("Procesar", key=f"proc_{key}"):
             resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-            st.session_state.historial.append(nombre_archivo)
+            # 🔥 GUARDAR BIEN EL HISTORIAL
+            st.session_state.historial.append({
+                "nombre": nombre_archivo,
+                "archivo": resultado.getvalue()
+            })
 
             st.success("Procesado correctamente")
             st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
@@ -253,10 +246,30 @@ elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
 
 # =========================================================
-# HISTORIAL
+# HISTORIAL PRO
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
 
-for h in st.session_state.historial[::-1]:
-    st.write("✔️", h)
+if not st.session_state.historial:
+    st.info("Aún no hay archivos procesados")
+else:
+    for i, item in enumerate(st.session_state.historial[::-1]):
+        col1, col2, col3 = st.columns([5,2,2])
+
+        with col1:
+            st.write("📄", item["nombre"])
+
+        with col2:
+            st.download_button(
+                "⬇️ Descargar",
+                data=item["archivo"],
+                file_name=item["nombre"],
+                key=f"download_{i}"
+            )
+
+        with col3:
+            if st.button("🗑️ Borrar", key=f"delete_{i}"):
+                index_real = len(st.session_state.historial) - 1 - i
+                st.session_state.historial.pop(index_real)
+                st.rerun()
