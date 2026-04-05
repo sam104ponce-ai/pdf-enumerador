@@ -48,12 +48,8 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# 🔥 NUEVO: detectar C48
-def es_cargo_extra(texto):
-    return "C48" in texto
-
 # =========================================================
-# PROCESAR PDF
+# PROCESAR PDF (CON C48 CORRECTO)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -72,7 +68,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
             usados = set()
 
-            for i, w in enumerate(words):
+            for w in words:
                 t = w["text"].strip()
 
                 x0 = float(w["x0"])
@@ -87,28 +83,60 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                # 🔥 CARGO NORMAL
-                if patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                # =========================================================
+                # AGRUPAR FILA (PARA DETECTAR C48)
+                # =========================================================
+                linea_texto = ""
+                linea_palabras = []
+
+                for ww in words:
+                    if abs(float(ww["top"]) - top) < 3:
+                        linea_texto += ww["text"] + " "
+                        linea_palabras.append(ww)
+
+                linea_mayus = linea_texto.upper()
+
+                # =========================================================
+                # 🔥 C48 COMO CARGO (ALINEADO AL MONTO)
+                # =========================================================
+                if "C48" in linea_mayus:
+                    for ww in linea_palabras:
+                        texto = ww["text"].strip()
+
+                        if patron_monto.match(texto):
+                            x0_m = float(ww["x0"])
+                            x1_m = float(ww["x1"])
+
+                            key_c48 = (texto, round(top,1), round(x0_m,1))
+                            if key_c48 in usados:
+                                continue
+
+                            can.setFillColorRGB(1,0,0)
+                            can.setFont("Helvetica-Bold",8)
+                            can.drawRightString(x1_m + 15, y, str(contador_cargos))
+
+                            contador_cargos += 1
+                            usados.add(key_c48)
+                            break
+
+                # =========================================================
+                # CARGOS NORMALES
+                # =========================================================
+                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
                     can.drawRightString(x1+15,y,str(contador_cargos))
                     contador_cargos+=1
                     usados.add(key)
 
-                # 🔥 ABONO
+                # =========================================================
+                # ABONOS
+                # =========================================================
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFillColorRGB(1,0,0)
                     can.setFont("Helvetica-Bold",8)
                     can.drawRightString(x1+15,y,str(contador_abonos))
                     contador_abonos+=1
-                    usados.add(key)
-
-                # 🔥 NUEVO: C48 como cargo
-                elif es_cargo_extra(t):
-                    can.setFillColorRGB(1,0,0)
-                    can.setFont("Helvetica-Bold",8)
-                    can.drawRightString(x1+15,y,str(contador_cargos))
-                    contador_cargos+=1
                     usados.add(key)
 
             can.showPage()
@@ -142,7 +170,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# CSS TARJETAS (BOTÓN = TARJETA)
+# CSS TARJETAS
 # =========================================================
 st.markdown("""
 <style>
