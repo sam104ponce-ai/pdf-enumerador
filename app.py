@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import pdfplumber
 from reportlab.pdfgen import canvas
 from PyPDF2 import PdfReader, PdfWriter
@@ -66,12 +66,14 @@ X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
-CODIGOS_CARGO = ["C48", "K65"]
+
+# Detecta cualquier código tipo C48, K65, etc.
+patron_codigo = re.compile(r'\b[A-Z]\d{2}\b')
 
 # =========================================================
 # PROCESAR PDF
 # =========================================================
-def procesar_pdf(file_bytes, nombre_archivo):
+def procesar_pdf(file_bytes):
     packet = BytesIO()
     can = canvas.Canvas(packet)
 
@@ -90,7 +92,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
             for w in words:
                 t = w["text"].strip()
-
                 x0 = float(w["x0"])
                 x1 = float(w["x1"])
                 top = float(w["top"])
@@ -105,6 +106,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
+                # Agrupar línea
                 linea_texto = ""
                 linea_palabras = []
 
@@ -115,30 +117,20 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea_mayus = linea_texto.upper()
 
-                # C48 / K65
-                if any(c in linea_mayus for c in CODIGOS_CARGO):
-
+                # Detectar códigos automáticos
+                if patron_codigo.search(linea_mayus):
                     for ww in linea_palabras:
                         texto = ww["text"].strip()
 
                         if patron_monto.match(texto):
-                            x0_m = float(ww["x0"])
                             x1_m = float(ww["x1"])
-
-                            key_cod = (texto, round(top,1), round(x0_m,1))
-                            if key_cod in usados:
-                                continue
-
-                            top_m = float(ww["top"])
-                            bottom_m = float(ww["bottom"])
-                            y_m = page.height - ((top_m + bottom_m) / 2) - 1
 
                             can.setFillColorRGB(1,0,0)
                             can.setFont("Helvetica-Bold",8)
-                            can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
+                            can.drawRightString(x1_m + 15, y, str(contador_cargos))
 
                             contador_cargos += 1
-                            usados.add(key_cod)
+                            usados.add((texto, round(top,1), round(x1_m,1)))
                             break
 
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
@@ -186,7 +178,21 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# UI TARJETAS
+# CSS TARJETAS
+# =========================================================
+st.markdown("""
+<style>
+div.stButton > button {
+    width: 100%;
+    height: 180px;
+    background-color: transparent;
+    border: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TARJETAS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -194,58 +200,74 @@ col1, col2, col3 = st.columns(3)
 
 def tarjeta(nombre, key, ruta):
     img = get_base64_image(ruta)
+    seleccionado = st.session_state.banco == key
 
-    if st.button(nombre, key=f"bank_{key}"):
+    estilo = "background-color:#1f2937;border:2px solid #374151;"
+    if seleccionado:
+        estilo = "background-color:#111827;border:2px solid #22c55e;box-shadow:0 0 10px #22c55e;"
+
+    click = st.button(" ", key=f"bank_{key}")
+
+    st.markdown(f"""
+    <div style="{estilo} border-radius:16px;padding:20px;text-align:center;margin-top:-140px;">
+        <img src="data:image/png;base64,{img}" width="80"><br><br>
+        <strong style="color:white;">{nombre}</strong>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if click:
         st.session_state.banco = key
         st.rerun()
 
-    if img:
-        st.markdown(f"""
-        <div style='margin-top:-110px;text-align:center;pointer-events:none;'>
-            <img src="data:image/png;base64,{img}" width="70">
-        </div>
-        """, unsafe_allow_html=True)
-
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
+
 with col2:
     tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
+
 with col3:
     tarjeta("Banamex", "banamex", "assets/banamex.png")
 
 st.divider()
 
 # =========================================================
-# INTERFAZ
+# INTERFAZ MULTI PDF
 # =========================================================
 def interfaz(nombre, key):
     st.subheader(nombre)
 
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=f"upload_{key}")
+    archivos = st.file_uploader(
+        "Sube hasta 3 PDFs",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key=f"upload_{key}"
+    )
 
-    if archivo:
-        if st.button("Procesar", key=f"proc_{key}"):
+    if archivos:
+        if len(archivos) > 3:
+            st.warning("Máximo 3 archivos")
+        else:
+            if st.button("Procesar PDFs", key=f"proc_{key}"):
 
-            resultado = procesar_pdf(archivo.read(), archivo.name)
+                for archivo in archivos:
+                    resultado = procesar_pdf(archivo.read())
 
-            nombre_final = archivo.name.replace(".pdf", "_ENUMERADO.pdf")
-            ruta = os.path.join(CARPETA_PDFS, nombre_final)
+                    nombre_final = archivo.name.replace(".pdf", "_ENUMERADO.pdf")
+                    ruta = os.path.join(CARPETA_PDFS, nombre_final)
 
-            with open(ruta, "wb") as f:
-                f.write(resultado.getvalue())
+                    with open(ruta, "wb") as f:
+                        f.write(resultado.getvalue())
 
-            # guardar en historial
-            st.session_state.historial.append({
-                "nombre": nombre_final,
-                "ruta": ruta
-            })
+                    st.session_state.historial.append({
+                        "nombre": nombre_final,
+                        "ruta": ruta
+                    })
 
-            guardar_historial(st.session_state.historial)
+                guardar_historial(st.session_state.historial)
 
-            st.success("Procesado correctamente")
+                st.success("PDFs procesados correctamente")
 
-            st.download_button("Descargar PDF", resultado, file_name=nombre_final)
-
+# Mostrar interfaz
 if st.session_state.banco == "tdd":
     interfaz("BBVA Débito", "tdd")
 elif st.session_state.banco == "tdc":
@@ -254,13 +276,13 @@ elif st.session_state.banco == "banamex":
     interfaz("Banamex", "banamex")
 
 # =========================================================
-# HISTORIAL PERMANENTE
+# HISTORIAL
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
 
 if not st.session_state.historial:
-    st.info("Aún no hay archivos")
+    st.info("Sin archivos aún")
 else:
     for i, item in enumerate(st.session_state.historial[::-1]):
 
@@ -279,9 +301,12 @@ else:
                 )
 
         with col3:
-            if st.button("🗑️ Borrar", key=f"del_{i}"):
-                os.remove(item["ruta"])
+            if st.button("🗑️", key=f"del_{i}"):
+                if os.path.exists(item["ruta"]):
+                    os.remove(item["ruta"])
+
                 index_real = len(st.session_state.historial) - 1 - i
                 st.session_state.historial.pop(index_real)
+
                 guardar_historial(st.session_state.historial)
-                st.rerun()
+                st.rerun()v
