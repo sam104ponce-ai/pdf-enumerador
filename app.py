@@ -45,7 +45,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS (NO SE TOCARON)
+# ESTILOS
 # =========================================================
 st.markdown("""
 <style>
@@ -85,13 +85,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# TÍTULO
+# BANCOS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
-# =========================================================
-# SELECCIÓN
-# =========================================================
 opciones = {
     "BBVA Débito": "tdd",
     "BBVA Crédito": "tdc",
@@ -150,7 +147,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF
+# PROCESAR PDF (CORREGIDO)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -180,22 +177,36 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
+                linea = " ".join([
+                    ww["text"] for ww in words
+                    if abs(float(ww["top"]) - top) < 3
+                ]).upper()
 
-                # 🔥 DETECTA CUALQUIER CÓDIGO TIPO C48, K65, etc.
+                # 🔥 DETECTAR CÓDIGOS PERO RESPETANDO COLUMNAS
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
-                    if patron_monto.match(t):
-                        can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1+15, y, str(contador_cargos))
-                        contador_cargos += 1
-                        usados.add(key)
 
+                    if patron_monto.match(t):
+
+                        if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                            can.setFont("Helvetica-Bold", 8)
+                            can.drawRightString(x1+15, y, str(contador_cargos))
+                            contador_cargos += 1
+                            usados.add(key)
+
+                        elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                            can.setFont("Helvetica-Bold", 8)
+                            can.drawRightString(x1+15, y, str(contador_abonos))
+                            contador_abonos += 1
+                            usados.add(key)
+
+                # CARGOS NORMALES
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_cargos))
                     contador_cargos += 1
                     usados.add(key)
 
+                # ABONOS
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                     can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_abonos))
@@ -244,12 +255,10 @@ if st.session_state.banco:
 
                 resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-                # 💾 GUARDAR EN DISCO
                 ruta = f"historial/{nombre_archivo}"
                 with open(ruta, "wb") as f:
                     f.write(resultado.getbuffer())
 
-                # 🧠 GUARDAR EN MEMORIA
                 st.session_state.historial.append({
                     "nombre": nombre_archivo,
                     "ruta": ruta
@@ -259,20 +268,22 @@ if st.session_state.banco:
                 st.download_button("Descargar", resultado, file_name=nombre_archivo)
 
 # =========================================================
-# HISTORIAL PRO
+# HISTORIAL CORREGIDO
 # =========================================================
+st.divider()
+st.markdown("### 📁 Historial")
+
 if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        # 🔥 DETECTA SI ES FORMATO NUEVO O VIEJO
-        if isinstance(item, dict):
-            nombre = item["nombre"]
-            ruta = item["ruta"]
-        else:
-            # formato viejo (string)
+        # 🔥 COMPATIBLE CON FORMATO VIEJO
+        if isinstance(item, str):
             nombre = item
             ruta = f"historial/{item}"
+        else:
+            nombre = item["nombre"]
+            ruta = item["ruta"]
 
         col1, col2, col3 = st.columns([6,1,1])
 
