@@ -20,13 +20,25 @@ if not os.path.exists("historial"):
     os.makedirs("historial")
 
 # =========================================================
+# CARGAR HISTORIAL DESDE DISCO
+# =========================================================
+if "historial" not in st.session_state:
+    st.session_state.historial = []
+
+    archivos_guardados = os.listdir("historial")
+
+    for archivo in archivos_guardados:
+        ruta = f"historial/{archivo}"
+        st.session_state.historial.append({
+            "nombre": archivo,
+            "ruta": ruta
+        })
+
+# =========================================================
 # ESTADO
 # =========================================================
 if "banco" not in st.session_state:
     st.session_state.banco = None
-
-if "historial" not in st.session_state:
-    st.session_state.historial = []
 
 # =========================================================
 # HEADER
@@ -46,41 +58,59 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS
+# 🎨 ESTILOS NUEVOS (SaaS)
 # =========================================================
 st.markdown("""
 <style>
 .card {
-    background-color: #0f172a;
-    border-radius: 18px;
-    padding: 25px 10px 12px 10px;
+    background: linear-gradient(145deg, #0b1220, #0f172a);
+    border-radius: 20px;
+    padding: 30px 10px 18px 10px;
     text-align: center;
     color: white;
-    border: 2px solid transparent;
-    transition: 0.3s;
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: all 0.3s ease;
     position: relative;
 }
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+}
+
 .card.selected {
     border: 2px solid #22c55e;
-    box-shadow: 0 0 12px #22c55e;
+    box-shadow: 0 0 25px rgba(34,197,94,0.6);
 }
+
 .logo {
     position: absolute;
-    top: -26px;
+    top: -28px;
     left: 50%;
     transform: translateX(-50%);
     background: white;
-    border-radius: 10px;
-    padding: 4px;
+    border-radius: 12px;
+    padding: 6px 10px;
 }
+
 .card h2 {
-    font-size: 13px;
-    margin-top: 18px;
+    font-size: 14px;
+    margin-top: 20px;
 }
-.radio-container {
+
+.check {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    background: #22c55e;
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
     display: flex;
+    align-items: center;
     justify-content: center;
-    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -96,8 +126,6 @@ opciones = {
     "Banamex": "banamex"
 }
 
-st.markdown('<div class="radio-container">', unsafe_allow_html=True)
-
 seleccion = st.radio(
     "Selecciona un banco",
     options=list(opciones.keys()),
@@ -105,24 +133,24 @@ seleccion = st.radio(
     horizontal=True
 )
 
-st.markdown('</div>', unsafe_allow_html=True)
-
 if seleccion:
     st.session_state.banco = opciones[seleccion]
 
 # =========================================================
-# TARJETAS
+# TARJETAS VISUALES
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
 def tarjeta(nombre, key, ruta):
     img = get_base64_image(ruta)
-    selected = "selected" if st.session_state.banco == key else ""
+    selected = st.session_state.banco == key
+    check = '<div class="check">✓</div>' if selected else ""
 
     st.markdown(f"""
-    <div class="card {selected}">
+    <div class="card {'selected' if selected else ''}">
+        {check}
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="85">
+            <img src="data:image/png;base64,{img}" width="95">
         </div>
         <h2>{nombre}</h2>
     </div>
@@ -148,7 +176,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (FIX ROJO EN TODAS LAS HOJAS)
+# PROCESAR PDF (ROJO EN TODAS LAS HOJAS)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -160,7 +188,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
 
-            # 🔴 IMPORTANTE: aplicar color en cada página
             can.setFillColor(red)
 
             words = page.extract_words()
@@ -204,13 +231,11 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             usados.add(key)
 
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_cargos))
                     contador_cargos += 1
                     usados.add(key)
 
                 elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
                     can.drawRightString(x1+15, y, str(contador_abonos))
                     contador_abonos += 1
                     usados.add(key)
@@ -279,8 +304,8 @@ if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        nombre = item["nombre"] if isinstance(item, dict) else item
-        ruta = item["ruta"] if isinstance(item, dict) else f"historial/{item}"
+        nombre = item["nombre"]
+        ruta = item["ruta"]
 
         col1, col2, col3 = st.columns([6,1,1])
 
