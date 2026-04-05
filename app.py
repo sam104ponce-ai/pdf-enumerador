@@ -261,32 +261,39 @@ if st.session_state.banco:
 # =========================================================
 # HISTORIAL PRO
 # =========================================================
-st.divider()
-st.markdown("### 📁 Historial")
-
 if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
+        # 🔥 DETECTA SI ES FORMATO NUEVO O VIEJO
+        if isinstance(item, dict):
+            nombre = item["nombre"]
+            ruta = item["ruta"]
+        else:
+            # formato viejo (string)
+            nombre = item
+            ruta = f"historial/{item}"
+
         col1, col2, col3 = st.columns([6,1,1])
 
         with col1:
-            st.write("📄", item["nombre"])
+            st.write("📄", nombre)
 
         with col2:
-            with open(item["ruta"], "rb") as f:
-                st.download_button(
-                    "⬇️",
-                    f,
-                    file_name=item["nombre"],
-                    key=f"down_{i}"
-                )
+            if os.path.exists(ruta):
+                with open(ruta, "rb") as f:
+                    st.download_button(
+                        "⬇️",
+                        f,
+                        file_name=nombre,
+                        key=f"down_{i}"
+                    )
 
         with col3:
             if st.button("🗑️", key=f"del_{i}"):
 
-                if os.path.exists(item["ruta"]):
-                    os.remove(item["ruta"])
+                if os.path.exists(ruta):
+                    os.remove(ruta)
 
                 st.session_state.historial.remove(item)
                 st.rerun()
