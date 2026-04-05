@@ -39,14 +39,14 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS 🔥 NUEVOS
+# ESTILOS PREMIUM
 # =========================================================
 st.markdown("""
 <style>
 .card {
     background-color: #0f172a;
     border-radius: 18px;
-    padding: 25px 10px 12px 10px; /* 🔽 más compacta */
+    padding: 25px 10px 12px 10px;
     text-align: center;
     color: white;
     border: 2px solid transparent;
@@ -70,17 +70,22 @@ st.markdown("""
 }
 
 .card h2 {
-    font-size: 16px; /* 🔽 texto más pequeño */
+    font-size: 16px;
     margin-top: 18px;
 }
 
 .radio-container {
     display: flex;
     justify-content: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# =========================================================
+# TÍTULO ARRIBA 🔥
+# =========================================================
+st.markdown("## 🏦 Bancos")
 
 # =========================================================
 # SELECCIÓN ÚNICA
@@ -108,8 +113,6 @@ if seleccion:
 # =========================================================
 # TARJETAS
 # =========================================================
-st.markdown("## 🏦 Bancos")
-
 col1, col2, col3 = st.columns(3)
 
 def tarjeta(nombre, key, ruta):
@@ -119,7 +122,7 @@ def tarjeta(nombre, key, ruta):
     st.markdown(f"""
     <div class="card {selected}">
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="60"> <!-- 🔼 logo más grande -->
+            <img src="data:image/png;base64,{img}" width="60">
         </div>
         <h2>{nombre}</h2>
     </div>
