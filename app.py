@@ -72,29 +72,43 @@ st.markdown("""
 .radio-container {
     display: flex;
     justify-content: center;
-    margin-bottom: -10px;
+    margin-bottom: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# TARJETA CON CÍRCULO
+# RADIO ÚNICO (SELECCIÓN REAL)
 # =========================================================
+opciones = {
+    "BBVA Débito": "tdd",
+    "BBVA Crédito": "tdc",
+    "Banamex": "banamex"
+}
+
+st.markdown('<div class="radio-container">', unsafe_allow_html=True)
+
+seleccion = st.radio(
+    label="Selecciona un banco",
+    options=list(opciones.keys()),
+    index=None if st.session_state.banco is None else list(opciones.values()).index(st.session_state.banco),
+    horizontal=True
+)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+if seleccion:
+    st.session_state.banco = opciones[seleccion]
+
+# =========================================================
+# TARJETAS VISUALES
+# =========================================================
+st.markdown("## 🏦 Bancos")
+
+col1, col2, col3 = st.columns(3)
+
 def tarjeta(nombre, key, ruta):
     img = get_base64_image(ruta)
-
-    st.markdown('<div class="radio-container">', unsafe_allow_html=True)
-    seleccionado = st.radio(
-        label="",
-        options=[key],
-        index=0 if st.session_state.banco == key else None,
-        key=f"radio_{key}"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if seleccionado:
-        st.session_state.banco = key
-
     selected = "selected" if st.session_state.banco == key else ""
 
     st.markdown(f"""
@@ -105,13 +119,6 @@ def tarjeta(nombre, key, ruta):
         <h2 style="margin-top:25px;">{nombre}</h2>
     </div>
     """, unsafe_allow_html=True)
-
-# =========================================================
-# TARJETAS
-# =========================================================
-st.markdown("## 🏦 Bancos")
-
-col1, col2, col3 = st.columns(3)
 
 with col1:
     tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
