@@ -39,7 +39,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# ESTILOS
+# ESTILOS (LOGO MÁS PEQUEÑO)
 # =========================================================
 st.markdown("""
 <style>
@@ -61,12 +61,12 @@ st.markdown("""
 
 .logo {
     position: absolute;
-    top: -28px;
+    top: -22px;  /* 🔥 ajustado */
     left: 50%;
     transform: translateX(-50%);
     background: white;
     border-radius: 12px;
-    padding: 6px;
+    padding: 4px;
 }
 
 .radio-container {
@@ -78,7 +78,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# RADIO ÚNICO (SELECCIÓN REAL)
+# SELECCIÓN ÚNICA
 # =========================================================
 opciones = {
     "BBVA Débito": "tdd",
@@ -89,7 +89,7 @@ opciones = {
 st.markdown('<div class="radio-container">', unsafe_allow_html=True)
 
 seleccion = st.radio(
-    label="Selecciona un banco",
+    "Selecciona un banco",
     options=list(opciones.keys()),
     index=None if st.session_state.banco is None else list(opciones.values()).index(st.session_state.banco),
     horizontal=True
@@ -101,7 +101,7 @@ if seleccion:
     st.session_state.banco = opciones[seleccion]
 
 # =========================================================
-# TARJETAS VISUALES
+# TARJETAS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -114,7 +114,7 @@ def tarjeta(nombre, key, ruta):
     st.markdown(f"""
     <div class="card {selected}">
         <div class="logo">
-            <img src="data:image/png;base64,{img}" width="65">
+            <img src="data:image/png;base64,{img}" width="45"> <!-- 🔥 más pequeño -->
         </div>
         <h2 style="margin-top:25px;">{nombre}</h2>
     </div>
@@ -172,6 +172,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
 
+                # Detecta cualquier código tipo C48, K65, etc
                 if re.search(r'\b[A-Z]\d{2}\b', linea):
                     if patron_monto.match(t):
                         can.setFont("Helvetica-Bold", 8)
