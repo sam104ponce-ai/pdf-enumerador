@@ -49,7 +49,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (CON C48 CORRECTO)
+# PROCESAR PDF (CON C48 + ALINEACIÓN PERFECTA)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -74,7 +74,10 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 x0 = float(w["x0"])
                 x1 = float(w["x1"])
                 top = float(w["top"])
-                y = page.height - top
+                bottom = float(w["bottom"])
+
+                # 🔥 ALINEACIÓN PERFECTA (CENTRO DEL TEXTO)
+                y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
                     continue
@@ -84,7 +87,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     continue
 
                 # =========================================================
-                # AGRUPAR FILA (PARA DETECTAR C48)
+                # AGRUPAR FILA
                 # =========================================================
                 linea_texto = ""
                 linea_palabras = []
@@ -111,9 +114,14 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             if key_c48 in usados:
                                 continue
 
+                            # recalcular Y para ese monto
+                            top_m = float(ww["top"])
+                            bottom_m = float(ww["bottom"])
+                            y_m = page.height - ((top_m + bottom_m) / 2) - 1
+
                             can.setFillColorRGB(1,0,0)
                             can.setFont("Helvetica-Bold",8)
-                            can.drawRightString(x1_m + 15, y, str(contador_cargos))
+                            can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
 
                             contador_cargos += 1
                             usados.add(key_c48)
@@ -176,7 +184,7 @@ st.markdown("""
 <style>
 div.stButton > button {
     width: 100%;
-    height: 160px;
+    height: 150px;
     border-radius: 16px;
     background-color: #111827;
     color: white;
@@ -194,7 +202,7 @@ div.stButton > button:hover {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# TARJETAS CLICKABLES
+# TARJETAS
 # =========================================================
 st.markdown("## 🏦 Bancos")
 
@@ -209,7 +217,7 @@ def tarjeta(nombre, key, ruta):
 
     if img:
         st.markdown(f"""
-        <div style='margin-top:-120px;text-align:center;pointer-events:none;'>
+        <div style='margin-top:-110px;text-align:center;pointer-events:none;'>
             <img src="data:image/png;base64,{img}" width="70">
         </div>
         """, unsafe_allow_html=True)
