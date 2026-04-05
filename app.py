@@ -48,11 +48,21 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# 🔥 DETECTOR DE CÓDIGOS AUTOMÁTICO (ej: C48, K65, P01, etc.)
-patron_codigo = re.compile(r'\b[A-Z]{1,3}\d{2,3}\b')
+# =========================================================
+# 🔥 DETECCIÓN INTELIGENTE DE CÓDIGOS
+# =========================================================
+def contiene_codigo(texto):
+    texto = texto.upper()
+
+    # detección segura directa
+    if "C48" in texto or "K65" in texto:
+        return True
+
+    # detección flexible general
+    return bool(re.search(r'[A-Z]{1,3}\d{2,3}', texto))
 
 # =========================================================
-# PROCESAR PDF (100% AUTOMÁTICO)
+# PROCESAR PDF
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -79,7 +89,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 top = float(w["top"])
                 bottom = float(w["bottom"])
 
-                # 🔥 ALINEACIÓN PERFECTA
                 y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
@@ -90,7 +99,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     continue
 
                 # =========================================================
-                # AGRUPAR FILA COMPLETA
+                # AGRUPAR FILA
                 # =========================================================
                 linea_texto = ""
                 linea_palabras = []
@@ -102,11 +111,11 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea_mayus = linea_texto.upper()
 
-                # =========================================================
-                # 🔥 DETECTAR SI LA FILA TIENE CÓDIGO
-                # =========================================================
-                tiene_codigo = bool(patron_codigo.search(linea_mayus))
+                tiene_codigo = contiene_codigo(linea_mayus)
 
+                # =========================================================
+                # SI TIENE CÓDIGO → PRIORIDAD
+                # =========================================================
                 if tiene_codigo:
                     for ww in linea_palabras:
                         texto = ww["text"].strip()
@@ -119,12 +128,10 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             if key_cod in usados:
                                 continue
 
-                            # recalcular alineación exacta
                             top_m = float(ww["top"])
                             bottom_m = float(ww["bottom"])
                             y_m = page.height - ((top_m + bottom_m) / 2) - 1
 
-                            # 🔥 DECIDIR SI ES CARGO O ABONO POR POSICIÓN
                             if X_CARGO_MIN <= x0_m <= X_CARGO_MAX:
                                 can.setFillColorRGB(1,0,0)
                                 can.setFont("Helvetica-Bold",8)
@@ -141,7 +148,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             break
 
                 # =========================================================
-                # RESPALDO (POR SI NO HAY CÓDIGO)
+                # RESPALDO
                 # =========================================================
                 elif patron_monto.match(t):
 
