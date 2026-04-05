@@ -148,7 +148,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (CON ROJO 🔴)
+# PROCESAR PDF (FIX ROJO EN TODAS LAS HOJAS)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -157,10 +157,12 @@ def procesar_pdf(file_bytes, nombre_archivo):
     contador_cargos = 1
     contador_abonos = 1
 
-    can.setFillColor(red)  # 🔴 COLOR GLOBAL
-
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
+
+            # 🔴 IMPORTANTE: aplicar color en cada página
+            can.setFillColor(red)
+
             words = page.extract_words()
             usados = set()
 
