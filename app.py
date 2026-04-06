@@ -20,35 +20,6 @@ st.markdown("""
     font-size: 14px;
     margin-bottom: 15px;
 }
-
-.bancos-container {
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 20px;
-}
-
-.banco-card {
-    text-align: center;
-    cursor: pointer;
-}
-
-.banco-card img {
-    width: 85px; /* LOGO GRANDE */
-}
-
-.banco-nombre {
-    font-size: 12px; /* TEXTO MÁS PEQUEÑO */
-    background-color: #f1f1f1;
-    padding: 4px;
-    border-radius: 8px;
-    margin-top: 5px;
-}
-
-.selected {
-    border: 2px solid red;
-    border-radius: 10px;
-    padding: 5px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -65,19 +36,41 @@ st.markdown('<div class="subtitulo">Selecciona banco</div>', unsafe_allow_html=T
 
 # -------------------- FUNCION TARJETA --------------------
 def banco_card(nombre, key, base64_img):
-    selected_class = "selected" if st.session_state.banco == key else ""
+    selected = st.session_state.banco == key
 
-    clicked = st.markdown(f"""
-    <div class="banco-card {selected_class}">
-        <img src="data:image/png;base64,{base64_img}">
-        <div class="banco-nombre">{nombre}</div>
+    border = "2px solid red" if selected else "1px solid #ddd"
+    bg = "#fff5f5" if selected else "white"
+
+    # BOTÓN INVISIBLE (hace click en toda la tarjeta)
+    if st.button("", key=f"btn_{key}", use_container_width=True):
+        st.session_state.banco = key
+        st.rerun()
+
+    # TARJETA VISUAL
+    st.markdown(f"""
+    <div style="
+        margin-top:-80px;
+        text-align:center;
+        padding:10px;
+        border-radius:12px;
+        border:{border};
+        background:{bg};
+        pointer-events:none;
+    ">
+        <img src="data:image/png;base64,{base64_img}" style="width:85px;">
+        <div style="
+            font-size:12px;
+            background:#f1f1f1;
+            padding:4px;
+            border-radius:8px;
+            margin-top:5px;
+        ">
+            {nombre}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button(f"Seleccionar {nombre}", key=key):
-        st.session_state.banco = key
-
-# -------------------- BASE64 (USA LOS TUYOS) --------------------
+# -------------------- BASE64 (PON TUS IMÁGENES) --------------------
 bbva = "TU_BASE64_BBVA"
 santander = "TU_BASE64_SANTANDER"
 banorte = "TU_BASE64_BANORTE"
@@ -107,10 +100,10 @@ def enumerar_pdf(file):
         packet = io.BytesIO()
         can = canvas.Canvas(packet, pagesize=letter)
 
-        # NUMERO EN ROJO (TODAS LAS HOJAS)
+        # NUMERO EN ROJO EN TODAS LAS HOJAS
         can.setFillColor(red)
         can.setFont("Helvetica-Bold", 12)
-        can.drawString(500, 750, str(i+1))
+        can.drawString(500, 750, str(i + 1))
 
         can.save()
         packet.seek(0)
@@ -143,11 +136,14 @@ if pdfs and len(pdfs) <= 3 and st.session_state.banco:
                 "nombre": pdf.name
             })
 
+elif pdfs and len(pdfs) > 3:
+    st.error("Solo puedes subir máximo 3 PDFs")
+
 # -------------------- HISTORIAL --------------------
 st.markdown("### 🕘 Historial")
 
 if st.session_state.historial:
-    for item in st.session_state.historial:
+    for item in st.session_state.historial[::-1]:
         st.write("📄", item["nombre"])
 else:
     st.write("Sin archivos aún")
