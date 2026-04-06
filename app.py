@@ -82,7 +82,6 @@ if archivo:
                                 break
 
                 # ❌ Se quita la línea de mostrar columna detectada
-                # st.write(f"📍 Columna detectada: {X_CARGO_MIN:.2f} - {X_CARGO_MAX:.2f}")
 
                 # Procesar PDF TDC
                 packet = BytesIO()
@@ -305,6 +304,8 @@ if archivo:
 # =========================================================
 # MOSTRAR HISTORIAL
 # =========================================================
+indice_a_eliminar = None  # ✅ Para eliminación segura
+
 if st.session_state.historial_pdfs:
     st.markdown("### 🗂 Historial de PDFs procesados")
     for i, item in enumerate(st.session_state.historial_pdfs):
@@ -320,6 +321,10 @@ if st.session_state.historial_pdfs:
             )
         with col3:
             if st.button("🗑️", key=f"eliminar_{i}"):
-                st.session_state.historial_pdfs.pop(i)
-                st.experimental_rerun()  # 🔹 refresca la página para actualizar el historial
+                indice_a_eliminar = i
+
+# Eliminar PDF fuera del bucle
+if indice_a_eliminar is not None:
+    st.session_state.historial_pdfs.pop(indice_a_eliminar)
+    st.experimental_rerun()
           
