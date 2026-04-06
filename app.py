@@ -48,7 +48,11 @@ if archivo:
             # BBVA TDC
             # =========================================================
             if tipo_pdf == "BBVA TDC":
+else:
 
+                nombre, ext = os.path.splitext(archivo.name)
+                pdf_final = f"{nombre}_ENUMERADO{ext}"
+    
                 # Detectar columna en la primera página
                 X_CARGO_MIN, X_CARGO_MAX = None, None
                 with pdfplumber.open(BytesIO(file_bytes)) as pdf:
