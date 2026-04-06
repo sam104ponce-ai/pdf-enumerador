@@ -145,8 +145,7 @@ if archivo:
                 writer.write(output_pdf)
                 output_pdf.seek(0)
 
-                st.success(f"✅ Listo: {pdf_final}")
-                st.success(f"Total enumerados: {contador - 1}")
+                st.success(f"✅ Total enumerados: {contador - 1}")
                 st.download_button(
                     label="⬇️ Descargar PDF Enumerado",
                     data=output_pdf,
