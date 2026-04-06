@@ -48,8 +48,7 @@ def get_base64_image(path):
 # =========================================================
 # ESTILOS
 # =========================================================
-st.markdown("""
-<style>
+st.markdown("""<style>
 .card {
     background-color: #0f172a;
     border-radius: 18px;
@@ -82,8 +81,7 @@ st.markdown("""
     justify-content: center;
     margin-bottom: 10px;
 }
-</style>
-""", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
 
 # =========================================================
 # BANCOS
@@ -140,7 +138,7 @@ with col3:
 st.divider()
 
 # =========================================================
-# CONFIG PDF
+# CONFIG PDF BASE
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
@@ -148,7 +146,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (FIX ROJO EN TODAS LAS HOJAS)
+# PROCESADOR NORMAL
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -159,8 +157,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
-
-            # 🔴 IMPORTANTE: aplicar color en cada página
             can.setFillColor(red)
 
             words = page.extract_words()
@@ -182,38 +178,19 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                linea = " ".join([
-                    ww["text"] for ww in words
-                    if abs(float(ww["top"]) - top) < 3
-                ]).upper()
+                if patron_monto.match(t):
 
-                if re.search(r'\b[A-Z]\d{2}\b', linea):
+                    if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1+15, y, str(contador_cargos))
+                        contador_cargos += 1
+                        usados.add(key)
 
-                    if patron_monto.match(t):
-
-                        if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                            can.setFont("Helvetica-Bold", 8)
-                            can.drawRightString(x1+15, y, str(contador_cargos))
-                            contador_cargos += 1
-                            usados.add(key)
-
-                        elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                            can.setFont("Helvetica-Bold", 8)
-                            can.drawRightString(x1+15, y, str(contador_abonos))
-                            contador_abonos += 1
-                            usados.add(key)
-
-                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_cargos))
-                    contador_cargos += 1
-                    usados.add(key)
-
-                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_abonos))
-                    contador_abonos += 1
-                    usados.add(key)
+                    elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1+15, y, str(contador_abonos))
+                        contador_abonos += 1
+                        usados.add(key)
 
             can.showPage()
 
@@ -237,17 +214,111 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
+# 🔥 PROCESADOR BBVA CRÉDITO
+# =========================================================
+def procesar_pdf_bbva_credito(file_bytes, nombre_archivo):
+
+    X_CARGO_MIN, X_CARGO_MAX = None, None
+
+    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+        page0 = pdf.pages[0]
+        words0 = page0.extract_words()
+
+        for w in words0:
+            if "IMPORTE" in w["text"].upper():
+                x_base = float(w["x0"])
+                posibles = [
+                    float(ww["x0"]) for ww in words0
+                    if patron_monto.match(ww["text"].strip())
+                    and abs(float(ww["x0"]) - x_base) < 120
+                ]
+                if posibles:
+                    X_CARGO_MIN = min(posibles) - 10
+                    X_CARGO_MAX = max(posibles) + 10
+                    break
+
+    packet = BytesIO()
+    can = canvas.Canvas(packet)
+
+    contador = 1
+    en_movimientos = False
+
+    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            can.setFillColor(red)
+            words = page.extract_words(use_text_flow=True)
+            usados = set()
+
+            for w in words:
+                texto = w["text"].strip()
+                texto_mayus = texto.upper()
+
+                if not en_movimientos:
+                    if "MOVIMIENTOS" in texto_mayus:
+                        en_movimientos = True
+                    else:
+                        continue
+
+                if "TARJETA" in texto_mayus and "EMPRESARIAL" in texto_mayus:
+                    continue
+
+                linea = " ".join([
+                    ww["text"] for ww in words
+                    if abs(float(ww["top"]) - float(w["top"])) < 3
+                ]).upper()
+
+                if any(p in linea for p in ["TOTAL IMPORTES", "TOTAL", "IMPORTE TOTAL"]):
+                    continue
+
+                if not patron_monto.match(texto):
+                    continue
+
+                x0 = float(w["x0"])
+                x1 = float(w["x1"])
+                y = page.height - float(w["top"]) - 2
+
+                if not (X_CARGO_MIN <= x0 <= X_CARGO_MAX):
+                    continue
+
+                key = (texto, round(x0,1), round(w["top"],1))
+                if key in usados:
+                    continue
+
+                can.setFont("Helvetica-Bold", 8)
+                can.drawRightString(x1+15, y, str(contador))
+
+                contador += 1
+                usados.add(key)
+
+            can.showPage()
+
+    can.save()
+    packet.seek(0)
+
+    overlay = PdfReader(packet)
+    base = PdfReader(BytesIO(file_bytes))
+    writer = PdfWriter()
+
+    for i in range(len(base.pages)):
+        page = base.pages[i]
+        if i < len(overlay.pages):
+            page.merge_page(overlay.pages[i])
+        writer.add_page(page)
+
+    output = BytesIO()
+    writer.write(output)
+    output.seek(0)
+
+    return output, f"{nombre_archivo}_ENUMERADO_TDC.pdf"
+
+# =========================================================
 # INTERFAZ
 # =========================================================
 if st.session_state.banco:
 
     st.subheader(f"Banco seleccionado: {st.session_state.banco.upper()}")
 
-    archivos = st.file_uploader(
-        "Sube hasta 3 PDFs",
-        type=["pdf"],
-        accept_multiple_files=True
-    )
+    archivos = st.file_uploader("Sube hasta 3 PDFs", type=["pdf"], accept_multiple_files=True)
 
     if archivos:
         archivos = archivos[:3]
@@ -255,7 +326,12 @@ if st.session_state.banco:
         for archivo in archivos:
             if st.button(f"Procesar {archivo.name}"):
 
-                resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
+                file_bytes = archivo.read()
+
+                if st.session_state.banco == "tdc":
+                    resultado, nombre_archivo = procesar_pdf_bbva_credito(file_bytes, archivo.name)
+                else:
+                    resultado, nombre_archivo = procesar_pdf(file_bytes, archivo.name)
 
                 ruta = f"historial/{nombre_archivo}"
                 with open(ruta, "wb") as f:
@@ -279,23 +355,18 @@ if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        nombre = item["nombre"] if isinstance(item, dict) else item
-        ruta = item["ruta"] if isinstance(item, dict) else f"historial/{item}"
-
         col1, col2, col3 = st.columns([6,1,1])
 
         with col1:
-            st.write("📄", nombre)
+            st.write("📄", item["nombre"])
 
         with col2:
-            if os.path.exists(ruta):
-                with open(ruta, "rb") as f:
-                    st.download_button("⬇️", f, file_name=nombre, key=f"d{i}")
+            with open(item["ruta"], "rb") as f:
+                st.download_button("⬇️", f, file_name=item["nombre"], key=f"d{i}")
 
         with col3:
             if st.button("🗑️", key=f"x{i}"):
-                if os.path.exists(ruta):
-                    os.remove(ruta)
+                os.remove(item["ruta"])
                 st.session_state.historial.remove(item)
                 st.rerun()
 
