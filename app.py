@@ -147,8 +147,11 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
+# 🔥 CÓDIGOS VÁLIDOS
+CODIGOS_VALIDOS = {"V47","V44","V42","V43","C48","T93","K65"}
+
 # =========================================================
-# PROCESAR PDF (FIX ROJO EN TODAS LAS HOJAS)
+# PROCESAR PDF
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -160,9 +163,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
 
-            # 🔴 IMPORTANTE: aplicar color en cada página
             can.setFillColor(red)
-
             words = page.extract_words()
             usados = set()
 
@@ -187,7 +188,14 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     if abs(float(ww["top"]) - top) < 3
                 ]).upper()
 
-                if re.search(r'\b[A-Z]\d{2}\b', linea):
+                # 🔥 DETECTAR SOLO CÓDIGOS ESPECÍFICOS
+                codigo_encontrado = None
+                for cod in CODIGOS_VALIDOS:
+                    if cod in linea:
+                        codigo_encontrado = cod
+                        break
+
+                if codigo_encontrado:
 
                     if patron_monto.match(t):
 
@@ -203,17 +211,20 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             contador_abonos += 1
                             usados.add(key)
 
-                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_cargos))
-                    contador_cargos += 1
-                    usados.add(key)
+                # 🔥 RESPALDO PARA MONTOS SIN CÓDIGO
+                elif patron_monto.match(t):
 
-                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_abonos))
-                    contador_abonos += 1
-                    usados.add(key)
+                    if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1+15, y, str(contador_cargos))
+                        contador_cargos += 1
+                        usados.add(key)
+
+                    elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1+15, y, str(contador_abonos))
+                        contador_abonos += 1
+                        usados.add(key)
 
             can.showPage()
 
@@ -279,8 +290,8 @@ if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        nombre = item["nombre"] if isinstance(item, dict) else item
-        ruta = item["ruta"] if isinstance(item, dict) else f"historial/{item}"
+        nombre = item["nombre"]
+        ruta = item["ruta"]
 
         col1, col2, col3 = st.columns([6,1,1])
 
