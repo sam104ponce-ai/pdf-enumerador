@@ -128,7 +128,7 @@ if archivo:
                         continue
 
                     # =========================================================
-                    # 🔥 DETECCIÓN DE CÓDIGOS (MEJORADA)
+                    # DETECCIÓN DE CÓDIGOS
                     # =========================================================
                     contiene_codigo = (
                         any(
@@ -158,7 +158,7 @@ if archivo:
                     ):
                         can.setFillColorRGB(1, 0, 0)
                         can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 14, y, str(contador_cargos))
+                        can.drawRightString(x1 + 6, y, str(contador_cargos))  # 🔥 AJUSTE
                         contador_cargos += 1
                         montos_usados.add(key)
                         continue
@@ -169,7 +169,7 @@ if archivo:
                     if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                         can.setFillColorRGB(1, 0, 0)
                         can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 14, y, str(contador_abonos))
+                        can.drawRightString(x1 + 6, y, str(contador_abonos))  # 🔥 AJUSTE
                         contador_abonos += 1
                         montos_usados.add(key)
 
