@@ -31,7 +31,7 @@ patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 # OPCIONES DE SUBIDA
 # =========================================================
 tipo_pdf = st.radio(
-    "Selecciona el tipo de PDF:",
+    "Selecciona el tipo de Banco:",
     ("BBVA TDC", "BBVA TDD")
 )
 
@@ -211,7 +211,7 @@ if archivo:
         st.write(f"Abonos: {contador_abonos - 1}")
 
         st.download_button(
-            "📥 Descargar PDF",
+            "⬇️ Descargar PDF",
             output,
             file_name=pdf_final,
             mime="application/pdf"
