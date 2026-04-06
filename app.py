@@ -318,7 +318,7 @@ if st.session_state.historial_pdfs:
                 file_name=item["nombre"],
                 mime="application/pdf"
             )
-                with col3:
+        with col3:
             if st.button("🗑️", key=f"eliminar_{i}"):
                 st.session_state.historial_pdfs.pop(i)
                 st.experimental_rerun()  # 🔹 refresca la página para actualizar el historial
