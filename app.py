@@ -16,7 +16,7 @@ st.set_page_config(page_title="FlowLedger", layout="wide")
 # ESTADO
 # =========================================================
 if "banco" not in st.session_state:
-    st.session_state.banco = None
+    st.session_state.banco = "tdd"
 
 if "historial" not in st.session_state:
     st.session_state.historial = []
@@ -30,88 +30,13 @@ st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimie
 st.divider()
 
 # =========================================================
-# FUNCION IMAGEN
+# DASHBOARD
 # =========================================================
-def get_base64_image(path):
-    if not os.path.exists(path):
-        return ""
-    with open(path, "rb") as img:
-        return base64.b64encode(img.read()).decode()
+st.markdown("### 📊 Dashboard")
 
-# =========================================================
-# ESTILOS
-# =========================================================
-st.markdown("""
-<style>
-.card {
-    background-color: #0f172a;
-    border-radius: 20px;
-    padding: 40px 10px 20px 10px;
-    text-align: center;
-    color: white;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: 0.3s;
-    position: relative;
-}
-
-.card:hover {
-    transform: scale(1.04);
-    border: 2px solid #2563eb;
-}
-
-.card.selected {
-    border: 2px solid #22c55e;
-    box-shadow: 0 0 15px #22c55e;
-}
-
-.logo {
-    position: absolute;
-    top: -28px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: white;
-    border-radius: 12px;
-    padding: 6px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# FUNCION TARJETA (CLICK REAL)
-# =========================================================
-def tarjeta(nombre, key, ruta):
-    img = get_base64_image(ruta)
-    selected = "selected" if st.session_state.banco == key else ""
-
-    if st.button("", key=f"btn_{key}"):
-        st.session_state.banco = key
-        st.rerun()
-
-    st.markdown(f"""
-    <div class="card {selected}">
-        <div class="logo">
-            <img src="data:image/png;base64,{img}" width="65">
-        </div>
-        <h2 style="margin-top:25px;">{nombre}</h2>
-    </div>
-    """, unsafe_allow_html=True)
-
-# =========================================================
-# TARJETAS
-# =========================================================
-st.markdown("## 🏦 Bancos")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
-
-with col2:
-    tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
-
-with col3:
-    tarjeta("Banamex", "banamex", "assets/banamex.png")
+col1, col2 = st.columns(2)
+col1.metric("PDFs procesados", len(st.session_state.historial))
+col2.metric("Bancos disponibles", 3)
 
 st.divider()
 
@@ -122,6 +47,19 @@ X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
+
+# =========================================================
+# 🔥 DETECCIÓN INTELIGENTE DE CÓDIGOS
+# =========================================================
+def contiene_codigo(texto):
+    texto = texto.upper()
+
+    # detección segura directa
+    if "C48" in texto or "K65" in texto:
+        return True
+
+    # detección flexible general
+    return bool(re.search(r'[A-Z]{1,3}\d{2,3}', texto))
 
 # =========================================================
 # PROCESAR PDF
@@ -136,16 +74,22 @@ def procesar_pdf(file_bytes, nombre_archivo):
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
             words = page.extract_words()
+
+            if not words:
+                can.showPage()
+                continue
+
             usados = set()
 
             for w in words:
                 t = w["text"].strip()
+
                 x0 = float(w["x0"])
                 x1 = float(w["x1"])
                 top = float(w["top"])
                 bottom = float(w["bottom"])
 
-                y = page.height - ((top + bottom) / 2)
+                y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
                     continue
@@ -154,27 +98,73 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 if key in usados:
                     continue
 
-                linea = " ".join([ww["text"] for ww in words if abs(float(ww["top"]) - top) < 3]).upper()
+                # =========================================================
+                # AGRUPAR FILA
+                # =========================================================
+                linea_texto = ""
+                linea_palabras = []
 
-                # Detecta cualquier código tipo C48, K65, etc
-                if re.search(r'\b[A-Z]\d{2}\b', linea):
-                    if patron_monto.match(t):
-                        can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1+15, y, str(contador_cargos))
-                        contador_cargos += 1
+                for ww in words:
+                    if abs(float(ww["top"]) - top) < 3:
+                        linea_texto += ww["text"] + " "
+                        linea_palabras.append(ww)
+
+                linea_mayus = linea_texto.upper()
+
+                tiene_codigo = contiene_codigo(linea_mayus)
+
+                # =========================================================
+                # SI TIENE CÓDIGO → PRIORIDAD
+                # =========================================================
+                if tiene_codigo:
+                    for ww in linea_palabras:
+                        texto = ww["text"].strip()
+
+                        if patron_monto.match(texto):
+                            x0_m = float(ww["x0"])
+                            x1_m = float(ww["x1"])
+
+                            key_cod = (texto, round(top,1), round(x0_m,1))
+                            if key_cod in usados:
+                                continue
+
+                            top_m = float(ww["top"])
+                            bottom_m = float(ww["bottom"])
+                            y_m = page.height - ((top_m + bottom_m) / 2) - 1
+
+                            if X_CARGO_MIN <= x0_m <= X_CARGO_MAX:
+                                can.setFillColorRGB(1,0,0)
+                                can.setFont("Helvetica-Bold",8)
+                                can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
+                                contador_cargos += 1
+
+                            elif X_ABONO_MIN <= x0_m <= X_ABONO_MAX:
+                                can.setFillColorRGB(1,0,0)
+                                can.setFont("Helvetica-Bold",8)
+                                can.drawRightString(x1_m + 15, y_m, str(contador_abonos))
+                                contador_abonos += 1
+
+                            usados.add(key_cod)
+                            break
+
+                # =========================================================
+                # RESPALDO
+                # =========================================================
+                elif patron_monto.match(t):
+
+                    if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                        can.setFillColorRGB(1,0,0)
+                        can.setFont("Helvetica-Bold",8)
+                        can.drawRightString(x1+15,y,str(contador_cargos))
+                        contador_cargos+=1
                         usados.add(key)
 
-                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_cargos))
-                    contador_cargos += 1
-                    usados.add(key)
-
-                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_abonos))
-                    contador_abonos += 1
-                    usados.add(key)
+                    elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                        can.setFillColorRGB(1,0,0)
+                        can.setFont("Helvetica-Bold",8)
+                        can.drawRightString(x1+15,y,str(contador_abonos))
+                        contador_abonos+=1
+                        usados.add(key)
 
             can.showPage()
 
@@ -198,29 +188,84 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
+# IMÁGENES
+# =========================================================
+def get_base64_image(path):
+    if not os.path.exists(path):
+        return ""
+    with open(path, "rb") as img:
+        return base64.b64encode(img.read()).decode()
+
+# =========================================================
+# UI TARJETAS
+# =========================================================
+st.markdown("""
+<style>
+div.stButton > button {
+    width: 100%;
+    height: 150px;
+    border-radius: 16px;
+    background-color: #111827;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    border: 1px solid #374151;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("## 🏦 Bancos")
+
+col1, col2, col3 = st.columns(3)
+
+def tarjeta(nombre, key, ruta):
+    img = get_base64_image(ruta)
+
+    if st.button(nombre, key=f"bank_{key}"):
+        st.session_state.banco = key
+        st.rerun()
+
+    if img:
+        st.markdown(f"""
+        <div style='margin-top:-110px;text-align:center;pointer-events:none;'>
+            <img src="data:image/png;base64,{img}" width="70">
+        </div>
+        """, unsafe_allow_html=True)
+
+with col1:
+    tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
+
+with col2:
+    tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
+
+with col3:
+    tarjeta("Banamex", "banamex", "assets/banamex.png")
+
+st.divider()
+
+# =========================================================
 # INTERFAZ
 # =========================================================
-if st.session_state.banco:
+def interfaz(nombre, key):
+    st.subheader(nombre)
 
-    st.subheader(f"Banco seleccionado: {st.session_state.banco.upper()}")
+    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key=f"upload_{key}")
 
-    archivos = st.file_uploader(
-        "Sube hasta 3 PDFs",
-        type=["pdf"],
-        accept_multiple_files=True
-    )
+    if archivo:
+        if st.button("Procesar", key=f"proc_{key}"):
+            resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
 
-    if archivos:
-        archivos = archivos[:3]
+            st.session_state.historial.append(nombre_archivo)
 
-        for archivo in archivos:
-            if st.button(f"Procesar {archivo.name}"):
-                resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
+            st.success("Procesado correctamente")
+            st.download_button("Descargar PDF", resultado, file_name=nombre_archivo)
 
-                st.session_state.historial.append(nombre_archivo)
-
-                st.success(f"{archivo.name} listo")
-                st.download_button("Descargar", resultado, file_name=nombre_archivo)
+if st.session_state.banco == "tdd":
+    interfaz("BBVA Débito", "tdd")
+elif st.session_state.banco == "tdc":
+    interfaz("BBVA Crédito", "tdc")
+elif st.session_state.banco == "banamex":
+    interfaz("Banamex", "banamex")
 
 # =========================================================
 # HISTORIAL
@@ -228,8 +273,5 @@ if st.session_state.banco:
 st.divider()
 st.markdown("### 📁 Historial")
 
-if st.session_state.historial:
-    for item in reversed(st.session_state.historial):
-        st.write("📄", item)
-else:
-    st.info("Aún no hay archivos procesados")
+for h in st.session_state.historial[::-1]:
+    st.write("✔️", h)
