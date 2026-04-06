@@ -1,311 +1,205 @@
 import streamlit as st
 import pdfplumber
 from reportlab.pdfgen import canvas
-from reportlab.lib.colors import red
 from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import re
 import os
-import base64
 
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config(page_title="FlowLedger", layout="wide")
+st.set_page_config(page_title="Enumerador PDF", layout="centered")
+
+st.title("📄 Enumerador de Movimientos")
 
 # =========================================================
-# CARPETA HISTORIAL
-# =========================================================
-if not os.path.exists("historial"):
-    os.makedirs("historial")
-
-# =========================================================
-# ESTADO
-# =========================================================
-if "banco" not in st.session_state:
-    st.session_state.banco = None
-
-if "historial" not in st.session_state:
-    st.session_state.historial = []
-
-# =========================================================
-# HEADER
-# =========================================================
-st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</p>", unsafe_allow_html=True)
-
-st.divider()
-
-# =========================================================
-# IMÁGENES
-# =========================================================
-def get_base64_image(path):
-    if not os.path.exists(path):
-        return ""
-    with open(path, "rb") as img:
-        return base64.b64encode(img.read()).decode()
-
-# =========================================================
-# ESTILOS
-# =========================================================
-st.markdown("""
-<style>
-.card {
-    background-color: #0f172a;
-    border-radius: 18px;
-    padding: 25px 10px 12px 10px;
-    text-align: center;
-    color: white;
-    border: 2px solid transparent;
-    transition: 0.3s;
-    position: relative;
-}
-.card.selected {
-    border: 2px solid #22c55e;
-    box-shadow: 0 0 12px #22c55e;
-}
-.logo {
-    position: absolute;
-    top: -26px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: white;
-    border-radius: 10px;
-    padding: 4px;
-}
-.card h2 {
-    font-size: 13px;
-    margin-top: 18px;
-}
-.radio-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# BANCOS
-# =========================================================
-st.markdown("## 🏦 Bancos")
-
-opciones = {
-    "BBVA Débito": "tdd",
-    "BBVA Crédito": "tdc",
-    "Banamex": "banamex"
-}
-
-st.markdown('<div class="radio-container">', unsafe_allow_html=True)
-
-seleccion = st.radio(
-    "Selecciona un banco",
-    options=list(opciones.keys()),
-    index=None if st.session_state.banco is None else list(opciones.values()).index(st.session_state.banco),
-    horizontal=True
-)
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-if seleccion:
-    st.session_state.banco = opciones[seleccion]
-
-# =========================================================
-# TARJETAS
-# =========================================================
-col1, col2, col3 = st.columns(3)
-
-def tarjeta(nombre, key, ruta):
-    img = get_base64_image(ruta)
-    selected = "selected" if st.session_state.banco == key else ""
-
-    st.markdown(f"""
-    <div class="card {selected}">
-        <div class="logo">
-            <img src="data:image/png;base64,{img}" width="85">
-        </div>
-        <h2>{nombre}</h2>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col1:
-    tarjeta("BBVA Débito", "tdd", "assets/bbva.png")
-
-with col2:
-    tarjeta("BBVA Crédito", "tdc", "assets/bbva.png")
-
-with col3:
-    tarjeta("Banamex", "banamex", "assets/banamex.png")
-
-st.divider()
-
-# =========================================================
-# CONFIG PDF
+# CONFIGURACIÓN (COLUMNAS)
 # =========================================================
 X_CARGO_MIN, X_CARGO_MAX = 290, 380
 X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-CODIGOS = ["V47","V44","V42","V43","C48","T93","K65"]
+# =========================================================
+# SUBIR PDF
+# =========================================================
+archivo = st.file_uploader("Sube tu PDF", type=["pdf"])
 
 # =========================================================
-# PROCESAR PDF
+# PROCESAR
 # =========================================================
-def procesar_pdf(file_bytes, nombre_archivo):
-    packet = BytesIO()
-    can = canvas.Canvas(packet)
+if archivo:
 
-    contador_cargos = 1
-    contador_abonos = 1
+    if st.button("Procesar PDF"):
 
-    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-        for page in pdf.pages:
+        file_bytes = archivo.read()
 
-            can.setFillColor(red)
-            words = page.extract_words()
-            usados = set()
+        nombre, ext = os.path.splitext(archivo.name)
+        pdf_final = f"{nombre}_ENUMERADO{ext}"
 
-            for w in words:
-                t = w["text"].strip()
-                x0 = float(w["x0"])
-                x1 = float(w["x1"])
-                top = float(w["top"])
-                bottom = float(w["bottom"])
+        packet = BytesIO()
+        can = canvas.Canvas(packet)
 
-                y = page.height - ((top + bottom) / 2)
+        contador_cargos = 1
+        contador_abonos = 1
 
-                if top < 120:
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+
+                words = page.extract_words(use_text_flow=True)
+                if not words:
+                    can.showPage()
                     continue
 
-                key = (t, round(top,1), round(x0,1))
-                if key in usados:
-                    continue
+                montos_usados = set()
 
-                linea = " ".join([
-                    ww["text"] for ww in words
-                    if abs(float(ww["top"]) - top) < 3
-                ]).upper()
+                for w in words:
+                    t = w["text"].strip()
 
-                # 🔥 SOLO SE MEJORÓ ESTA DETECCIÓN
-                if re.search(r'\b[A-Z]\d{2}\b', linea) or any(
-                    re.search(cod[0] + r'\s*' + cod[1:], linea)
-                    for cod in CODIGOS
-                ):
+                    if not patron_monto.match(t):
+                        continue
 
-                    if patron_monto.match(t):
+                    x0 = float(w["x0"])
+                    x1 = float(w["x1"])
+                    top = float(w["top"])
+                    y = page.height - top - 2
 
-                        if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                            can.setFont("Helvetica-Bold", 8)
-                            can.drawRightString(x1+15, y, str(contador_cargos))
-                            contador_cargos += 1
-                            usados.add(key)
+                    if top < 120:
+                        continue
 
-                        elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                            can.setFont("Helvetica-Bold", 8)
-                            can.drawRightString(x1+15, y, str(contador_abonos))
-                            contador_abonos += 1
-                            usados.add(key)
+                    # =========================================================
+                    # MONTOS EN LA MISMA FILA
+                    # =========================================================
+                    linea_montos = []
 
-                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_cargos))
-                    contador_cargos += 1
-                    usados.add(key)
+                    for ww in words:
+                        if abs(float(ww["top"]) - top) < 3:
+                            texto = ww["text"].strip()
+                            if patron_monto.match(texto):
+                                linea_montos.append({
+                                    "text": texto,
+                                    "x0": float(ww["x0"]),
+                                    "x1": float(ww["x1"])
+                                })
 
-                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                    can.setFont("Helvetica-Bold", 8)
-                    can.drawRightString(x1+15, y, str(contador_abonos))
-                    contador_abonos += 1
-                    usados.add(key)
+                    linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
 
-            can.showPage()
+                    # =========================================================
+                    # IGNORAR MONTO DE OPERACIÓN
+                    # =========================================================
+                    ignorar = False
 
-    can.save()
-    packet.seek(0)
+                    if len(linea_montos) >= 3:
+                        for i, m in enumerate(linea_montos):
+                            if m["text"] == t and abs(m["x0"] - x0) < 1:
+                                if i == 1:
+                                    ignorar = True
 
-    overlay = PdfReader(packet)
-    base = PdfReader(BytesIO(file_bytes))
-    writer = PdfWriter()
+                    if ignorar:
+                        continue
 
-    for i in range(len(base.pages)):
-        page = base.pages[i]
-        if i < len(overlay.pages):
-            page.merge_page(overlay.pages[i])
-        writer.add_page(page)
+                    # =========================================================
+                    # TEXTO DE LA LÍNEA
+                    # =========================================================
+                    linea_texto = ""
+                    for ww in words:
+                        if abs(float(ww["top"]) - top) < 3:
+                            linea_texto += ww["text"] + " "
 
-    output = BytesIO()
-    writer.write(output)
-    output.seek(0)
+                    linea_mayus = linea_texto.upper()
 
-    return output, f"{nombre_archivo}_ENUMERADO.pdf"
+                    if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
+                        continue
 
-# =========================================================
-# INTERFAZ
-# =========================================================
-if st.session_state.banco:
+                    if "P14 TOTAL PLAY" not in linea_mayus:
+                        if any(p in linea_mayus for p in [
+                            "SALDO",
+                            "OPERACION",
+                            "OPERACIÓN",
+                            "LIQUIDACION",
+                            "LIQUIDACIÓN",
+                            "TOTAL"
+                        ]):
+                            continue
 
-    st.subheader(f"Banco seleccionado: {st.session_state.banco.upper()}")
+                    key = (t, round(top, 1), round(x0, 1))
+                    if key in montos_usados:
+                        continue
 
-    archivos = st.file_uploader(
-        "Sube hasta 3 PDFs",
-        type=["pdf"],
-        accept_multiple_files=True
-    )
+                    # =========================================================
+                    # 🔥 DETECCIÓN DE CÓDIGOS (MEJORADA)
+                    # =========================================================
+                    contiene_codigo = (
+                        any(
+                            re.search(c[0] + r'\s*' + c[1:], linea_mayus)
+                            for c in [
+                                "P14", "V44", "V47", "V43", "T93",
+                                "V41", "K65", "V40", "T92", "K64"
+                            ]
+                        )
+                        or "P14 TOTAL PLAY" in linea_mayus
+                    )
 
-    if archivos:
-        archivos = archivos[:3]
+                    # =========================================================
+                    # PRIMER MONTO
+                    # =========================================================
+                    es_primer_monto = any(
+                        abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
+                    )
 
-        for archivo in archivos:
-            if st.button(f"Procesar {archivo.name}"):
+                    # =========================================================
+                    # CARGOS
+                    # =========================================================
+                    if (
+                        (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
+                        or (contiene_codigo and es_primer_monto)
+                        or ("P14 TOTAL PLAY" in linea_mayus)
+                    ):
+                        can.setFillColorRGB(1, 0, 0)
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1 + 14, y, str(contador_cargos))
+                        contador_cargos += 1
+                        montos_usados.add(key)
+                        continue
 
-                resultado, nombre_archivo = procesar_pdf(archivo.read(), archivo.name)
+                    # =========================================================
+                    # ABONOS
+                    # =========================================================
+                    if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                        can.setFillColorRGB(1, 0, 0)
+                        can.setFont("Helvetica-Bold", 8)
+                        can.drawRightString(x1 + 14, y, str(contador_abonos))
+                        contador_abonos += 1
+                        montos_usados.add(key)
 
-                ruta = f"historial/{nombre_archivo}"
-                with open(ruta, "wb") as f:
-                    f.write(resultado.getbuffer())
+                can.showPage()
 
-                st.session_state.historial.append({
-                    "nombre": nombre_archivo,
-                    "ruta": ruta
-                })
+        can.save()
+        packet.seek(0)
 
-                st.success(f"{archivo.name} listo")
-                st.download_button("Descargar", resultado, file_name=nombre_archivo)
+        overlay_pdf = PdfReader(packet)
+        base_pdf = PdfReader(BytesIO(file_bytes))
 
-# =========================================================
-# HISTORIAL CORREGIDO
-# =========================================================
-st.divider()
-st.markdown("### 📁 Historial")
+        writer = PdfWriter()
 
-if st.session_state.historial:
+        for i in range(len(base_pdf.pages)):
+            page = base_pdf.pages[i]
+            if i < len(overlay_pdf.pages):
+                page.merge_page(overlay_pdf.pages[i])
+            writer.add_page(page)
 
-    for i, item in enumerate(reversed(st.session_state.historial)):
+        output = BytesIO()
+        writer.write(output)
+        output.seek(0)
 
-        if isinstance(item, dict):
-            nombre = item["nombre"]
-            ruta = item["ruta"]
-        else:
-            nombre = item
-            ruta = f"historial/{item}"
+        st.success(f"✅ Listo: {pdf_final}")
+        st.write(f"Cargos: {contador_cargos - 1}")
+        st.write(f"Abonos: {contador_abonos - 1}")
 
-        col1, col2, col3 = st.columns([6,1,1])
-
-        with col1:
-            st.write("📄", nombre)
-
-        with col2:
-            if os.path.exists(ruta):
-                with open(ruta, "rb") as f:
-                    st.download_button("⬇️", f, file_name=nombre, key=f"d{i}")
-
-        with col3:
-            if st.button("🗑️", key=f"x{i}"):
-                if os.path.exists(ruta):
-                    os.remove(ruta)
-                st.session_state.historial.remove(item)
-                st.rerun()
-
-else:
-    st.info("Aún no hay archivos procesados")
+        st.download_button(
+            "📥 Descargar PDF",
+            output,
+            file_name=pdf_final,
+            mime="application/pdf"
+        )
