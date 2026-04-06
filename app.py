@@ -169,7 +169,7 @@ if archivo:
                     if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
                         can.setFillColorRGB(1, 0, 0)
                         can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 6, y, str(contador_abonos))  # 🔥 AJUSTE
+                        can.drawRightString(x1 + 10, y, str(contador_abonos))  # 🔥 AJUSTE
                         contador_abonos += 1
                         montos_usados.add(key)
 
