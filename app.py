@@ -48,18 +48,8 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# =========================================================
-# 🔥 DETECCIÓN INTELIGENTE DE CÓDIGOS
-# =========================================================
-def contiene_codigo(texto):
-    texto = texto.upper()
-
-    # detección segura directa
-    if "C48" in texto or "K65" in texto:
-        return True
-
-    # detección flexible general
-    return bool(re.search(r'[A-Z]{1,3}\d{2,3}', texto))
+# 🔥 CÓDIGOS QUE SE CONSIDERAN CARGO
+CODIGOS_CARGO = ["C48", "K65"]
 
 # =========================================================
 # PROCESAR PDF
@@ -89,6 +79,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 top = float(w["top"])
                 bottom = float(w["bottom"])
 
+                # 🔥 ALINEACIÓN PERFECTA
                 y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
@@ -111,12 +102,11 @@ def procesar_pdf(file_bytes, nombre_archivo):
 
                 linea_mayus = linea_texto.upper()
 
-                tiene_codigo = contiene_codigo(linea_mayus)
+                # =========================================================
+                # 🔥 CÓDIGOS (C48, K65) COMO CARGO
+                # =========================================================
+                if any(codigo in linea_mayus for codigo in CODIGOS_CARGO):
 
-                # =========================================================
-                # SI TIENE CÓDIGO → PRIORIDAD
-                # =========================================================
-                if tiene_codigo:
                     for ww in linea_palabras:
                         texto = ww["text"].strip()
 
@@ -128,43 +118,38 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             if key_cod in usados:
                                 continue
 
+                            # alineación exacta del monto
                             top_m = float(ww["top"])
                             bottom_m = float(ww["bottom"])
                             y_m = page.height - ((top_m + bottom_m) / 2) - 1
 
-                            if X_CARGO_MIN <= x0_m <= X_CARGO_MAX:
-                                can.setFillColorRGB(1,0,0)
-                                can.setFont("Helvetica-Bold",8)
-                                can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
-                                contador_cargos += 1
+                            can.setFillColorRGB(1,0,0)
+                            can.setFont("Helvetica-Bold",8)
+                            can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
 
-                            elif X_ABONO_MIN <= x0_m <= X_ABONO_MAX:
-                                can.setFillColorRGB(1,0,0)
-                                can.setFont("Helvetica-Bold",8)
-                                can.drawRightString(x1_m + 15, y_m, str(contador_abonos))
-                                contador_abonos += 1
-
+                            contador_cargos += 1
                             usados.add(key_cod)
                             break
 
                 # =========================================================
-                # RESPALDO
+                # CARGOS NORMALES
                 # =========================================================
-                elif patron_monto.match(t):
+                elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                    can.setFillColorRGB(1,0,0)
+                    can.setFont("Helvetica-Bold",8)
+                    can.drawRightString(x1+15,y,str(contador_cargos))
+                    contador_cargos+=1
+                    usados.add(key)
 
-                    if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                        can.setFillColorRGB(1,0,0)
-                        can.setFont("Helvetica-Bold",8)
-                        can.drawRightString(x1+15,y,str(contador_cargos))
-                        contador_cargos+=1
-                        usados.add(key)
-
-                    elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                        can.setFillColorRGB(1,0,0)
-                        can.setFont("Helvetica-Bold",8)
-                        can.drawRightString(x1+15,y,str(contador_abonos))
-                        contador_abonos+=1
-                        usados.add(key)
+                # =========================================================
+                # ABONOS
+                # =========================================================
+                elif patron_monto.match(t) and X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                    can.setFillColorRGB(1,0,0)
+                    can.setFont("Helvetica-Bold",8)
+                    can.drawRightString(x1+15,y,str(contador_abonos))
+                    contador_abonos+=1
+                    usados.add(key)
 
             can.showPage()
 
