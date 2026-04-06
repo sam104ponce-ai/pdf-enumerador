@@ -28,9 +28,14 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# SUBIR PDF
+# OPCIONES DE SUBIDA
 # =========================================================
-archivo = st.file_uploader("Sube tu PDF", type=["pdf"])
+tipo_pdf = st.radio(
+    "Selecciona el tipo de PDF:",
+    ("BBVA TDC", "BBVA TDD")
+)
+
+archivo = st.file_uploader(f"Sube tu PDF ({tipo_pdf})", type=["pdf"])
 
 # =========================================================
 # PROCESAR
