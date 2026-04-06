@@ -135,7 +135,7 @@ if archivo:
                             re.search(c[0] + r'\s*' + c[1:], linea_mayus)
                             for c in [
                                 "P14", "V44", "V47", "V43", "T93",
-                                "V41", "K65", "V40", "T92", "K64,V46"
+                                "V41", "K65", "V40", "T92", "K64","V46"
                             ]
                         )
                         or "P14 TOTAL PLAY" in linea_mayus
