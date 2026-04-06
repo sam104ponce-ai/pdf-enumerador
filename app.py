@@ -48,11 +48,8 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-# 🔥 CÓDIGOS QUE SE CONSIDERAN CARGO
-CODIGOS_CARGO = ["C48", "K65"]
-
 # =========================================================
-# PROCESAR PDF
+# PROCESAR PDF (CON C48 + ALINEACIÓN PERFECTA)
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -79,7 +76,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 top = float(w["top"])
                 bottom = float(w["bottom"])
 
-                # 🔥 ALINEACIÓN PERFECTA
+                # 🔥 ALINEACIÓN PERFECTA (CENTRO DEL TEXTO)
                 y = page.height - ((top + bottom) / 2) - 1
 
                 if top < 120:
@@ -103,10 +100,9 @@ def procesar_pdf(file_bytes, nombre_archivo):
                 linea_mayus = linea_texto.upper()
 
                 # =========================================================
-                # 🔥 CÓDIGOS (C48, K65) COMO CARGO
+                # 🔥 C48 COMO CARGO (ALINEADO AL MONTO)
                 # =========================================================
-                if any(codigo in linea_mayus for codigo in CODIGOS_CARGO):
-
+                if "C48" in linea_mayus:
                     for ww in linea_palabras:
                         texto = ww["text"].strip()
 
@@ -114,11 +110,11 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             x0_m = float(ww["x0"])
                             x1_m = float(ww["x1"])
 
-                            key_cod = (texto, round(top,1), round(x0_m,1))
-                            if key_cod in usados:
+                            key_c48 = (texto, round(top,1), round(x0_m,1))
+                            if key_c48 in usados:
                                 continue
 
-                            # alineación exacta del monto
+                            # recalcular Y para ese monto
                             top_m = float(ww["top"])
                             bottom_m = float(ww["bottom"])
                             y_m = page.height - ((top_m + bottom_m) / 2) - 1
@@ -128,7 +124,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                             can.drawRightString(x1_m + 15, y_m, str(contador_cargos))
 
                             contador_cargos += 1
-                            usados.add(key_cod)
+                            usados.add(key_c48)
                             break
 
                 # =========================================================
@@ -173,7 +169,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
     return output, f"{nombre_archivo}_ENUMERADO.pdf"
 
 # =========================================================
-# IMÁGENES
+# BASE64 IMG
 # =========================================================
 def get_base64_image(path):
     if not os.path.exists(path):
@@ -182,7 +178,7 @@ def get_base64_image(path):
         return base64.b64encode(img.read()).decode()
 
 # =========================================================
-# UI TARJETAS
+# CSS TARJETAS
 # =========================================================
 st.markdown("""
 <style>
@@ -195,10 +191,19 @@ div.stButton > button {
     font-size: 16px;
     font-weight: 600;
     border: 1px solid #374151;
+    transition: 0.3s;
+}
+div.stButton > button:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 0 15px rgba(37,99,235,0.6);
+    transform: scale(1.03);
 }
 </style>
 """, unsafe_allow_html=True)
 
+# =========================================================
+# TARJETAS
+# =========================================================
 st.markdown("## 🏦 Bancos")
 
 col1, col2, col3 = st.columns(3)
