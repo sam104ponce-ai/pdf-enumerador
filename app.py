@@ -116,6 +116,10 @@ if archivo:
                                     linea_texto += ww["text"] + " "
                             linea_mayus = linea_texto.upper()
 
+                            # 🔹 NUEVA REGLA: ignorar Capital de promoción:$0.00
+                            if "CAPITAL DE PROMOCIÓN:$0.00" in linea_mayus.replace(" ", ""):
+                                continue
+
                             if any(p in linea_mayus for p in ["TOTAL IMPORTES", "TOTAL", "IMPORTE TOTAL"]):
                                 continue
 
@@ -169,7 +173,7 @@ if archivo:
                 agregar_a_historial("PDF_ENUMERADO.pdf", output_pdf.getvalue(), tipo_pdf)
 
             # =========================================================
-            # BBVA TDD
+            # BBVA TDD (SIN CAMBIOS)
             # =========================================================
             else:
 
