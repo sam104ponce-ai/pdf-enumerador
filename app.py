@@ -63,7 +63,7 @@ if archivo:
                     x0 = float(w["x0"])
                     x1 = float(w["x1"])
                     top = float(w["top"])
-                    y = page.height - top - 6
+                    y = page.height - top - 7
 
                     if top < 120:
                         continue
@@ -158,7 +158,7 @@ if archivo:
                     ):
                         can.setFillColorRGB(1, 0, 0)
                         can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 6, y, str(contador_cargos))  # 🔥 AJUSTE
+                        can.drawRightString(x1 + 10, y, str(contador_cargos))  # 🔥 AJUSTE
                         contador_cargos += 1
                         montos_usados.add(key)
                         continue
