@@ -63,7 +63,7 @@ if archivo:
                     x0 = float(w["x0"])
                     x1 = float(w["x1"])
                     top = float(w["top"])
-                    y = page.height - top - 7
+                    y = page.height - top - 6
 
                     if top < 120:
                         continue
