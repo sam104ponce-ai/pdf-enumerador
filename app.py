@@ -69,7 +69,8 @@ if archivo:
                                 X_CARGO_MAX = max(posibles) + 10
                                 break
 
-                st.write(f"📍 Columna detectada: {X_CARGO_MIN:.2f} - {X_CARGO_MAX:.2f}")
+                # ❌ Se elimina la línea que muestra la columna detectada
+# st.write(f"📍 Columna detectada: {X_CARGO_MIN:.2f} - {X_CARGO_MAX:.2f}")
 
                 # Procesar PDF TDC
                 packet = BytesIO()
