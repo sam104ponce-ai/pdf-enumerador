@@ -147,6 +147,8 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
+CODIGOS_EXTRA = ["V47","V44","V42","V43","C48","T93","K65"]
+
 # =========================================================
 # PROCESAR PDF
 # =========================================================
@@ -185,22 +187,29 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     if abs(float(ww["top"]) - top) < 3
                 ]).upper()
 
-                # 🔥 ÚNICO CAMBIO (ampliar detección)
-                if re.search(r'\b[A-Z]\d{2}\b', linea) or any(cod in linea for cod in ["V47","V44","V42","V43","C48","T93","K65"]):
+                if re.search(r'\b[A-Z]\d{2}\b', linea) or any(cod in linea for cod in CODIGOS_EXTRA):
 
                     if patron_monto.match(t):
 
-                        if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                        # 🔥 FORZAR COMO CARGO SI ES UNO DE TUS CÓDIGOS
+                        if any(cod in linea for cod in CODIGOS_EXTRA):
                             can.setFont("Helvetica-Bold", 8)
                             can.drawRightString(x1+15, y, str(contador_cargos))
                             contador_cargos += 1
                             usados.add(key)
 
-                        elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                            can.setFont("Helvetica-Bold", 8)
-                            can.drawRightString(x1+15, y, str(contador_abonos))
-                            contador_abonos += 1
-                            usados.add(key)
+                        else:
+                            if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
+                                can.setFont("Helvetica-Bold", 8)
+                                can.drawRightString(x1+15, y, str(contador_cargos))
+                                contador_cargos += 1
+                                usados.add(key)
+
+                            elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                                can.setFont("Helvetica-Bold", 8)
+                                can.drawRightString(x1+15, y, str(contador_abonos))
+                                contador_abonos += 1
+                                usados.add(key)
 
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFont("Helvetica-Bold", 8)
@@ -269,7 +278,7 @@ if st.session_state.banco:
                 st.download_button("Descargar", resultado, file_name=nombre_archivo)
 
 # =========================================================
-# HISTORIAL (CORREGIDO)
+# HISTORIAL CORREGIDO
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
