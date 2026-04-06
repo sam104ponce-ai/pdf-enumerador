@@ -313,12 +313,12 @@ if st.session_state.historial_pdfs:
             st.write(f"{item['nombre']} ({item['banco']})")
         with col2:
             st.download_button(
-                label="📥 Descargar",
+                label="⬇️ Descargar",
                 data=item["pdf_bytes"],
                 file_name=item["nombre"],
                 mime="application/pdf"
             )
         with col3:
-            if st.button("❌ Eliminar", key=f"eliminar_{i}"):
+            if st.button("🗑️ Eliminar", key=f"eliminar_{i}"):
                 st.session_state.historial_pdfs.pop(i)
                 st.experimental_rerun()
