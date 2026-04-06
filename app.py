@@ -304,10 +304,10 @@ if archivo:
 # =========================================================
 # MOSTRAR HISTORIAL
 # =========================================================
-indice_a_eliminar = None  # ✅ Para eliminación segura
-
 if st.session_state.historial_pdfs:
     st.markdown("### 🗂 Historial de PDFs procesados")
+    indices_a_eliminar = []
+
     for i, item in enumerate(st.session_state.historial_pdfs):
         col1, col2, col3 = st.columns([4,1,1])
         with col1:
@@ -321,10 +321,8 @@ if st.session_state.historial_pdfs:
             )
         with col3:
             if st.button("🗑️", key=f"eliminar_{i}"):
-                indice_a_eliminar = i
+                indices_a_eliminar.append(i)
 
-# Eliminar PDF fuera del bucle
-if indice_a_eliminar is not None:
-    st.session_state.historial_pdfs.pop(indice_a_eliminar)
-    st.experimental_rerun()
-          
+    # Eliminar PDFs fuera del bucle, de manera segura
+    for i in sorted(indices_a_eliminar, reverse=True):
+        st.session_state.historial_pdfs.pop(i)
