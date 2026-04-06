@@ -1,42 +1,3 @@
-import streamlit as st
-import pdfplumber
-from reportlab.pdfgen import canvas
-from PyPDF2 import PdfReader, PdfWriter
-from io import BytesIO
-import re
-import os
-
-# =========================================================
-# CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="FlowLedger",  # Nombre de la página
-    page_icon="💼",            # Ícono de la pestaña
-    layout="centered"
-)
-
-# Título y eslogan de la app
-st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>", unsafe_allow_html=True)
-
-# =========================================================
-# CONFIGURACIÓN (COLUMNAS)
-# =========================================================
-X_CARGO_MIN, X_CARGO_MAX = 290, 380
-X_ABONO_MIN, X_ABONO_MAX = 390, 480
-
-patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
-
-# =========================================================
-# OPCIONES DE SUBIDA
-# =========================================================
-tipo_pdf = st.radio(
-    "Selecciona el tipo de PDF:",
-    ("BBVA TDC", "BBVA TDD")
-)
-
-archivo = st.file_uploader(f"Sube tu PDF ({tipo_pdf})", type=["pdf"])
-
 # =========================================================
 # PROCESAR
 # =========================================================
@@ -44,165 +5,167 @@ if archivo:
 
     if st.button("Procesar PDF"):
 
-        file_bytes = archivo.read()
+        # Mostrar mensaje azul mientras procesa
+        with st.spinner("Procesando…"):
+            file_bytes = archivo.read()
 
-        nombre, ext = os.path.splitext(archivo.name)
-        pdf_final = f"{nombre}_ENUMERADO{ext}"
+            nombre, ext = os.path.splitext(archivo.name)
+            pdf_final = f"{nombre}_ENUMERADO{ext}"
 
-        packet = BytesIO()
-        can = canvas.Canvas(packet)
+            packet = BytesIO()
+            can = canvas.Canvas(packet)
 
-        contador_cargos = 1
-        contador_abonos = 1
+            contador_cargos = 1
+            contador_abonos = 1
 
-        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-            for page in pdf.pages:
+            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+                for page in pdf.pages:
 
-                words = page.extract_words(use_text_flow=True)
-                if not words:
-                    can.showPage()
-                    continue
-
-                montos_usados = set()
-
-                for w in words:
-                    t = w["text"].strip()
-
-                    if not patron_monto.match(t):
+                    words = page.extract_words(use_text_flow=True)
+                    if not words:
+                        can.showPage()
                         continue
 
-                    x0 = float(w["x0"])
-                    x1 = float(w["x1"])
-                    top = float(w["top"])
-                    y = page.height - top - 6
+                    montos_usados = set()
 
-                    if top < 120:
-                        continue
+                    for w in words:
+                        t = w["text"].strip()
 
-                    # =========================================================
-                    # MONTOS EN LA MISMA FILA
-                    # =========================================================
-                    linea_montos = []
-
-                    for ww in words:
-                        if abs(float(ww["top"]) - top) < 3:
-                            texto = ww["text"].strip()
-                            if patron_monto.match(texto):
-                                linea_montos.append({
-                                    "text": texto,
-                                    "x0": float(ww["x0"]),
-                                    "x1": float(ww["x1"])
-                                })
-
-                    linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
-
-                    # =========================================================
-                    # IGNORAR MONTO DE OPERACIÓN
-                    # =========================================================
-                    ignorar = False
-
-                    if len(linea_montos) >= 3:
-                        for i, m in enumerate(linea_montos):
-                            if m["text"] == t and abs(m["x0"] - x0) < 1:
-                                if i == 1:
-                                    ignorar = True
-
-                    if ignorar:
-                        continue
-
-                    # =========================================================
-                    # TEXTO DE LA LÍNEA
-                    # =========================================================
-                    linea_texto = ""
-                    for ww in words:
-                        if abs(float(ww["top"]) - top) < 3:
-                            linea_texto += ww["text"] + " "
-
-                    linea_mayus = linea_texto.upper()
-
-                    if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
-                        continue
-
-                    if "P14 TOTAL PLAY" not in linea_mayus:
-                        if any(p in linea_mayus for p in [
-                            "SALDO",
-                            "OPERACION",
-                            "OPERACIÓN",
-                            "LIQUIDACION",
-                            "LIQUIDACIÓN",
-                            "TOTAL"
-                        ]):
+                        if not patron_monto.match(t):
                             continue
 
-                    key = (t, round(top, 1), round(x0, 1))
-                    if key in montos_usados:
-                        continue
+                        x0 = float(w["x0"])
+                        x1 = float(w["x1"])
+                        top = float(w["top"])
+                        y = page.height - top - 6
 
-                    # =========================================================
-                    # DETECCIÓN DE CÓDIGOS
-                    # =========================================================
-                    contiene_codigo = (
-                        any(
-                            re.search(c[0] + r'\s*' + c[1:], linea_mayus)
-                            for c in [
-                                "P14", "V44", "V47", "V43", "T93",
-                                "V41", "K65", "V40", "T92", "K64","V46","I74","C48"
-                            ]
+                        if top < 120:
+                            continue
+
+                        # =========================================================
+                        # MONTOS EN LA MISMA FILA
+                        # =========================================================
+                        linea_montos = []
+
+                        for ww in words:
+                            if abs(float(ww["top"]) - top) < 3:
+                                texto = ww["text"].strip()
+                                if patron_monto.match(texto):
+                                    linea_montos.append({
+                                        "text": texto,
+                                        "x0": float(ww["x0"]),
+                                        "x1": float(ww["x1"])
+                                    })
+
+                        linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
+
+                        # =========================================================
+                        # IGNORAR MONTO DE OPERACIÓN
+                        # =========================================================
+                        ignorar = False
+
+                        if len(linea_montos) >= 3:
+                            for i, m in enumerate(linea_montos):
+                                if m["text"] == t and abs(m["x0"] - x0) < 1:
+                                    if i == 1:
+                                        ignorar = True
+
+                        if ignorar:
+                            continue
+
+                        # =========================================================
+                        # TEXTO DE LA LÍNEA
+                        # =========================================================
+                        linea_texto = ""
+                        for ww in words:
+                            if abs(float(ww["top"]) - top) < 3:
+                                linea_texto += ww["text"] + " "
+
+                        linea_mayus = linea_texto.upper()
+
+                        if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
+                            continue
+
+                        if "P14 TOTAL PLAY" not in linea_mayus:
+                            if any(p in linea_mayus for p in [
+                                "SALDO",
+                                "OPERACION",
+                                "OPERACIÓN",
+                                "LIQUIDACION",
+                                "LIQUIDACIÓN",
+                                "TOTAL"
+                            ]):
+                                continue
+
+                        key = (t, round(top, 1), round(x0, 1))
+                        if key in montos_usados:
+                            continue
+
+                        # =========================================================
+                        # DETECCIÓN DE CÓDIGOS
+                        # =========================================================
+                        contiene_codigo = (
+                            any(
+                                re.search(c[0] + r'\s*' + c[1:], linea_mayus)
+                                for c in [
+                                    "P14", "V44", "V47", "V43", "T93",
+                                    "V41", "K65", "V40", "T92", "K64","V46","I74","C48"
+                                ]
+                            )
+                            or "P14 TOTAL PLAY" in linea_mayus
                         )
-                        or "P14 TOTAL PLAY" in linea_mayus
-                    )
 
-                    # =========================================================
-                    # PRIMER MONTO
-                    # =========================================================
-                    es_primer_monto = any(
-                        abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
-                    )
+                        # =========================================================
+                        # PRIMER MONTO
+                        # =========================================================
+                        es_primer_monto = any(
+                            abs(m["x0"] - x0) < 2 for m in linea_montos[:1]
+                        )
 
-                    # =========================================================
-                    # CARGOS
-                    # =========================================================
-                    if (
-                        (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
-                        or (contiene_codigo and es_primer_monto)
-                        or ("P14 TOTAL PLAY" in linea_mayus)
-                    ):
-                        can.setFillColorRGB(1, 0, 0)
-                        can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 16, y, str(contador_cargos))  # 🔥 AJUSTE
-                        contador_cargos += 1
-                        montos_usados.add(key)
-                        continue
+                        # =========================================================
+                        # CARGOS
+                        # =========================================================
+                        if (
+                            (X_CARGO_MIN <= x0 <= X_CARGO_MAX)
+                            or (contiene_codigo and es_primer_monto)
+                            or ("P14 TOTAL PLAY" in linea_mayus)
+                        ):
+                            can.setFillColorRGB(1, 0, 0)
+                            can.setFont("Helvetica-Bold", 8)
+                            can.drawRightString(x1 + 16, y, str(contador_cargos))
+                            contador_cargos += 1
+                            montos_usados.add(key)
+                            continue
 
-                    # =========================================================
-                    # ABONOS
-                    # =========================================================
-                    if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                        can.setFillColorRGB(1, 0, 0)
-                        can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 16, y, str(contador_abonos))  # 🔥 AJUSTE
-                        contador_abonos += 1
-                        montos_usados.add(key)
+                        # =========================================================
+                        # ABONOS
+                        # =========================================================
+                        if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                            can.setFillColorRGB(1, 0, 0)
+                            can.setFont("Helvetica-Bold", 8)
+                            can.drawRightString(x1 + 16, y, str(contador_abonos))
+                            contador_abonos += 1
+                            montos_usados.add(key)
 
-                can.showPage()
+                    can.showPage()
 
-        can.save()
-        packet.seek(0)
+            can.save()
+            packet.seek(0)
 
-        overlay_pdf = PdfReader(packet)
-        base_pdf = PdfReader(BytesIO(file_bytes))
+            overlay_pdf = PdfReader(packet)
+            base_pdf = PdfReader(BytesIO(file_bytes))
 
-        writer = PdfWriter()
+            writer = PdfWriter()
 
-        for i in range(len(base_pdf.pages)):
-            page = base_pdf.pages[i]
-            if i < len(overlay_pdf.pages):
-                page.merge_page(overlay_pdf.pages[i])
-            writer.add_page(page)
+            for i in range(len(base_pdf.pages)):
+                page = base_pdf.pages[i]
+                if i < len(overlay_pdf.pages):
+                    page.merge_page(overlay_pdf.pages[i])
+                writer.add_page(page)
 
-        output = BytesIO()
-        writer.write(output)
-        output.seek(0)
+            output = BytesIO()
+            writer.write(output)
+            output.seek(0)
 
         st.success(f"✅ Listo: {pdf_final}")
         st.write(f"Cargos: {contador_cargos - 1}")
