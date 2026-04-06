@@ -147,7 +147,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
-CODIGOS_EXTRA = ["V47","V44","V42","V43","C48","T93","K65"]
+CODIGOS = ["V47","V44","V42","V43","C48","T93","K65"]
 
 # =========================================================
 # PROCESAR PDF
@@ -187,29 +187,25 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     if abs(float(ww["top"]) - top) < 3
                 ]).upper()
 
-                if re.search(r'\b[A-Z]\d{2}\b', linea) or any(cod in linea for cod in CODIGOS_EXTRA):
+                # 🔥 SOLO SE MEJORÓ ESTA DETECCIÓN
+                if re.search(r'\b[A-Z]\d{2}\b', linea) or any(
+                    re.search(cod[0] + r'\s*' + cod[1:], linea)
+                    for cod in CODIGOS
+                ):
 
                     if patron_monto.match(t):
 
-                        # 🔥 FORZAR COMO CARGO SI ES UNO DE TUS CÓDIGOS
-                        if any(cod in linea for cod in CODIGOS_EXTRA):
+                        if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                             can.setFont("Helvetica-Bold", 8)
                             can.drawRightString(x1+15, y, str(contador_cargos))
                             contador_cargos += 1
                             usados.add(key)
 
-                        else:
-                            if X_CARGO_MIN <= x0 <= X_CARGO_MAX:
-                                can.setFont("Helvetica-Bold", 8)
-                                can.drawRightString(x1+15, y, str(contador_cargos))
-                                contador_cargos += 1
-                                usados.add(key)
-
-                            elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
-                                can.setFont("Helvetica-Bold", 8)
-                                can.drawRightString(x1+15, y, str(contador_abonos))
-                                contador_abonos += 1
-                                usados.add(key)
+                        elif X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                            can.setFont("Helvetica-Bold", 8)
+                            can.drawRightString(x1+15, y, str(contador_abonos))
+                            contador_abonos += 1
+                            usados.add(key)
 
                 elif patron_monto.match(t) and X_CARGO_MIN <= x0 <= X_CARGO_MAX:
                     can.setFont("Helvetica-Bold", 8)
