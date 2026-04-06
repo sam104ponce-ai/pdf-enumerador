@@ -148,7 +148,7 @@ X_ABONO_MIN, X_ABONO_MAX = 390, 480
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
-# PROCESAR PDF (ÚNICO CAMBIO AQUÍ)
+# PROCESAR PDF
 # =========================================================
 def procesar_pdf(file_bytes, nombre_archivo):
     packet = BytesIO()
@@ -161,7 +161,6 @@ def procesar_pdf(file_bytes, nombre_archivo):
         for page in pdf.pages:
 
             can.setFillColor(red)
-
             words = page.extract_words()
             usados = set()
 
@@ -186,7 +185,7 @@ def procesar_pdf(file_bytes, nombre_archivo):
                     if abs(float(ww["top"]) - top) < 3
                 ]).upper()
 
-                # 🔥 SOLO SE AMPLIÓ ESTA CONDICIÓN
+                # 🔥 ÚNICO CAMBIO (ampliar detección)
                 if re.search(r'\b[A-Z]\d{2}\b', linea) or any(cod in linea for cod in ["V47","V44","V42","V43","C48","T93","K65"]):
 
                     if patron_monto.match(t):
@@ -270,7 +269,7 @@ if st.session_state.banco:
                 st.download_button("Descargar", resultado, file_name=nombre_archivo)
 
 # =========================================================
-# HISTORIAL
+# HISTORIAL (CORREGIDO)
 # =========================================================
 st.divider()
 st.markdown("### 📁 Historial")
@@ -279,8 +278,12 @@ if st.session_state.historial:
 
     for i, item in enumerate(reversed(st.session_state.historial)):
 
-        nombre = item["nombre"]
-        ruta = item["ruta"]
+        if isinstance(item, dict):
+            nombre = item["nombre"]
+            ruta = item["ruta"]
+        else:
+            nombre = item
+            ruta = f"historial/{item}"
 
         col1, col2, col3 = st.columns([6,1,1])
 
