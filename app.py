@@ -1,3 +1,42 @@
+import streamlit as st
+import pdfplumber
+from reportlab.pdfgen import canvas
+from PyPDF2 import PdfReader, PdfWriter
+from io import BytesIO
+import re
+import os
+
+# =========================================================
+# CONFIG
+# =========================================================
+st.set_page_config(
+    page_title="FlowLedger",  # Nombre de la página
+    page_icon="💼",            # Ícono de la pestaña
+    layout="centered"
+)
+
+# Título y eslogan de la app
+st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>", unsafe_allow_html=True)
+
+# =========================================================
+# CONFIGURACIÓN (COLUMNAS)
+# =========================================================
+X_CARGO_MIN, X_CARGO_MAX = 290, 380
+X_ABONO_MIN, X_ABONO_MAX = 390, 480
+
+patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
+
+# =========================================================
+# OPCIONES DE SUBIDA
+# =========================================================
+tipo_pdf = st.radio(
+    "Selecciona el tipo de PDF:",
+    ("BBVA TDC", "BBVA TDD")
+)
+
+archivo = st.file_uploader(f"Sube tu PDF ({tipo_pdf})", type=["pdf"])
+
 # =========================================================
 # PROCESAR
 # =========================================================
