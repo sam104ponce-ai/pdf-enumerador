@@ -9,7 +9,15 @@ import os
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config(page_title="Enumerador PDF", layout="centered")
+st.set_page_config(
+    page_title="FlowLedger",  # Nombre de la página
+    page_icon="💼",            # Puedes cambiar el ícono si quieres
+    layout="centered"
+)
+
+# Título y eslogan de la app
+st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>", unsafe_allow_html=True)
 
 st.title("📄 Enumerador de Movimientos")
 
