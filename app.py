@@ -185,14 +185,18 @@ if archivo:
 
                 st.success(f"✅ Total enumerados: {contador - 1}")
 
-                st.download_button(
-                    label="📥 Descargar PDF Enumerado",
-                    data=output_pdf,
-                    file_name="PDF_ENUMERADO.pdf",
-                    mime="application/pdf"
-                )
+               nombre, ext = os.path.splitext(archivo.name)
+               pdf_final = f"{nombre}_ENUMERADO{ext}"
 
-                agregar_a_historial("PDF_ENUMERADO.pdf", output_pdf.getvalue(), tipo_pdf)
+                st.download_button(
+                  label="📥 Descargar PDF Enumerado",
+                  data=output_pdf,
+                  file_name=pdf_final,
+                  mime="application/pdf"
+                )
+    
+
+                agregar_a_historial("pdf_final", output_pdf.getvalue(), tipo_pdf)
 
             # =========================================================
             # BBVA TDD (SIN CAMBIOS)
