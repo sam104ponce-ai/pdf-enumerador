@@ -9,11 +9,7 @@ import os
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config(
-    page_title="FlowLedger",
-    page_icon="💼",
-    layout="centered"
-)
+st.set_page_config(page_title="FlowLedger", page_icon="💼", layout="centered")
 
 st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>", unsafe_allow_html=True)
@@ -28,11 +24,7 @@ patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 # =========================================================
 # OPCIONES
 # =========================================================
-tipo_pdf = st.radio(
-    "Selecciona el tipo de Banco:",
-    ("BBVA TDC", "BBVA TDD")
-)
-
+tipo_pdf = st.radio("Selecciona el tipo de Banco:", ("BBVA TDC", "BBVA TDD"))
 archivo = st.file_uploader(f"Sube tu PDF ({tipo_pdf})", type=["pdf"])
 
 # =========================================================
@@ -113,9 +105,7 @@ if archivo:
                             if "TARJETA" in texto_mayus and "EMPRESARIAL" in texto_mayus:
                                 continue
 
-                            # =============================================
                             # TEXTO COMPLETO DE LA FILA
-                            # =============================================
                             linea_texto = ""
                             for ww in words:
                                 if abs(float(ww["top"]) - float(w["top"])) < 3:
@@ -123,20 +113,12 @@ if archivo:
 
                             linea_mayus = linea_texto.upper()
 
-                            # =============================================
                             # 🔹 IGNORAR CAPITAL DE PROMOCIÓN
-                            # =============================================
                             if "CAPITAL DE PROMOCIÓN" in linea_mayus:
                                 continue
 
-                            # =============================================
                             # EXCLUIR TOTALES
-                            # =============================================
-                            if any(p in linea_mayus for p in [
-                                "TOTAL IMPORTES",
-                                "TOTAL",
-                                "IMPORTE TOTAL"
-                            ]):
+                            if any(p in linea_mayus for p in ["TOTAL IMPORTES", "TOTAL", "IMPORTE TOTAL"]):
                                 continue
 
                             if not patron_monto.match(texto):
@@ -154,9 +136,7 @@ if archivo:
                             if key in montos_usados:
                                 continue
 
-                            # =============================================
                             # ENUMERAR
-                            # =============================================
                             can.setFillColorRGB(1, 0, 0)
                             can.setFont("Helvetica-Bold", 8)
                             can.drawRightString(x1 + 15, y, str(contador))
@@ -185,18 +165,18 @@ if archivo:
 
                 st.success(f"✅ Total enumerados: {contador - 1}")
 
-               nombre, ext = os.path.splitext(archivo.name)
-               pdf_final = f"{nombre}_ENUMERADO{ext}"
+                # 🔹 NOMBRE DEL PDF CORREGIDO
+                nombre, ext = os.path.splitext(archivo.name)
+                pdf_final = f"{nombre}_ENUMERADO{ext}"
 
                 st.download_button(
-                  label="📥 Descargar PDF Enumerado",
-                  data=output_pdf,
-                  file_name=pdf_final,
-                  mime="application/pdf"
+                    label="📥 Descargar PDF Enumerado",
+                    data=output_pdf,
+                    file_name=pdf_final,
+                    mime="application/pdf"
                 )
-    
 
-                agregar_a_historial("pdf_final", output_pdf.getvalue(), tipo_pdf)
+                agregar_a_historial(pdf_final, output_pdf.getvalue(), tipo_pdf)
 
             # =========================================================
             # BBVA TDD (SIN CAMBIOS)
@@ -324,12 +304,7 @@ if archivo:
                 st.write(f"Cargos: {contador_cargos - 1}")
                 st.write(f"Abonos: {contador_abonos - 1}")
 
-                st.download_button(
-                    "⬇️ Descargar PDF",
-                    output,
-                    file_name=pdf_final,
-                    mime="application/pdf"
-                )
+                st.download_button("⬇️ Descargar PDF", output, file_name=pdf_final, mime="application/pdf")
 
                 agregar_a_historial(pdf_final, output.getvalue(), tipo_pdf)
 
@@ -348,12 +323,7 @@ if st.session_state.historial_pdfs:
             st.write(f"{item['nombre']} ({item['banco']})")
 
         with col2:
-            st.download_button(
-                label="⬇️",
-                data=item["pdf_bytes"],
-                file_name=item["nombre"],
-                mime="application/pdf"
-            )
+            st.download_button("⬇️", item["pdf_bytes"], file_name=item["nombre"], mime="application/pdf")
 
         with col3:
             if st.button("🗑️", key=f"eliminar_{i}"):
