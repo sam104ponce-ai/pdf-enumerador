@@ -179,7 +179,7 @@ if archivo:
                 agregar_a_historial(pdf_final, output_pdf.getvalue(), tipo_pdf)
 
             # =========================================================
-            # BBVA TDD (SIN CAMBIOS)
+            # BBVA TDD (CORREGIDO: clasificación por x1, no por x0)
             # =========================================================
             else:
 
@@ -266,7 +266,18 @@ if archivo:
 
                             es_primer_monto = any(abs(m["x0"]-x0)<2 for m in linea_montos[:1])
 
-                            if (X_CARGO_MIN <= x0 <= X_CARGO_MAX) or (contiene_codigo and es_primer_monto) or ("P14 TOTAL PLAY" in linea_mayus):
+                            # --- FIX ---
+                            # Antes se comparaba x0 (borde IZQUIERDO) contra los rangos de columna.
+                            # Como los montos están alineados a la derecha, un monto con menos
+                            # dígitos (p.ej. "652.40") tiene un x0 más grande que uno con más
+                            # dígitos (p.ej. "4,413.88"), aunque ambos estén en la MISMA columna.
+                            # Eso hacía que montos cortos "cruzaran" hacia el rango de la columna
+                            # vecina y se enumeraran con el contador equivocado (cargo <-> abono).
+                            #
+                            # La solución es usar x1 (borde DERECHO), que permanece estable para
+                            # una columna alineada a la derecha sin importar cuántos dígitos tenga
+                            # el número.
+                            if (X_CARGO_MIN <= x1 <= X_CARGO_MAX) or (contiene_codigo and es_primer_monto) or ("P14 TOTAL PLAY" in linea_mayus):
                                 can.setFillColorRGB(1,0,0)
                                 can.setFont("Helvetica-Bold",8)
                                 can.drawRightString(x1+16,y,str(contador_cargos))
@@ -274,7 +285,7 @@ if archivo:
                                 montos_usados.add(key)
                                 continue
 
-                            if X_ABONO_MIN <= x0 <= X_ABONO_MAX:
+                            if X_ABONO_MIN <= x1 <= X_ABONO_MAX:
                                 can.setFillColorRGB(1,0,0)
                                 can.setFont("Helvetica-Bold",8)
                                 can.drawRightString(x1+16,y,str(contador_abonos))
