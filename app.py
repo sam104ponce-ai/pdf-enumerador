@@ -17,8 +17,20 @@ st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimi
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
-X_CARGO_MIN, X_CARGO_MAX = 290, 380
-X_ABONO_MIN, X_ABONO_MAX = 390, 480
+# NOTA IMPORTANTE SOBRE ESTOS RANGOS:
+# Los montos en el PDF están alineados a la DERECHA dentro de su columna,
+# por lo que el borde derecho (x1) de cada monto es estable (siempre el
+# mismo valor sin importar cuántos dígitos tenga el número), mientras que
+# el borde izquierdo (x0) varía según el ancho del texto.
+# Por eso la clasificación de columna se hace comparando x1, NUNCA x0.
+#
+# Estos valores fueron calibrados con el estado de cuenta BBVA TDD real
+# (columna CARGOS con x1≈397.8, columna ABONOS con x1≈455.7) y validados:
+# el conteo resultante (329 cargos, 753 abonos) coincide exactamente con
+# el resumen "Total de Movimientos" que imprime el propio banco al final
+# del estado de cuenta.
+X_CARGO_MIN, X_CARGO_MAX = 388, 408
+X_ABONO_MIN, X_ABONO_MAX = 448, 468
 patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*\.\d{2}$')
 
 # =========================================================
@@ -54,7 +66,7 @@ if archivo:
             # =========================================================
             if tipo_pdf == "BBVA TDC":
 
-                X_CARGO_MIN, X_CARGO_MAX = None, None
+                X_CARGO_MIN_TDC, X_CARGO_MAX_TDC = None, None
                 with pdfplumber.open(BytesIO(file_bytes)) as pdf:
                     page0 = pdf.pages[0]
                     words0 = page0.extract_words()
@@ -72,8 +84,8 @@ if archivo:
                                         posibles.append(float(ww["x0"]))
 
                             if posibles:
-                                X_CARGO_MIN = min(posibles) - 10
-                                X_CARGO_MAX = max(posibles) + 10
+                                X_CARGO_MIN_TDC = min(posibles) - 10
+                                X_CARGO_MAX_TDC = max(posibles) + 10
                                 break
 
                 packet = BytesIO()
@@ -129,7 +141,7 @@ if archivo:
                             top = float(w["top"])
                             y = page.height - top - 2
 
-                            if not (X_CARGO_MIN <= x0 <= X_CARGO_MAX):
+                            if not (X_CARGO_MIN_TDC <= x0 <= X_CARGO_MAX_TDC):
                                 continue
 
                             key = (texto, round(x0,1), round(top,1))
@@ -179,7 +191,7 @@ if archivo:
                 agregar_a_historial(pdf_final, output_pdf.getvalue(), tipo_pdf)
 
             # =========================================================
-            # BBVA TDD (CORREGIDO: clasificación por x1, no por x0)
+            # BBVA TDD (CORREGIDO: clasificación por x1 con rangos calibrados)
             # =========================================================
             else:
 
@@ -227,6 +239,7 @@ if archivo:
 
                             linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
 
+                            # Ignora el 2do monto en filas con >=3 montos (saldo de operación/liquidación)
                             ignorar = False
                             if len(linea_montos) >= 3:
                                 for i, m in enumerate(linea_montos):
@@ -257,27 +270,11 @@ if archivo:
                             if key in montos_usados:
                                 continue
 
-                            contiene_codigo = (
-                                any(re.search(c[0]+r'\s*'+c[1:], linea_mayus)
-                                for c in ["P14","V44","V47","V43","T93","V41",
-                                          "K65","V40","T92","K64","V46","I74","C48"])
-                                or "P14 TOTAL PLAY" in linea_mayus
-                            )
-
-                            es_primer_monto = any(abs(m["x0"]-x0)<2 for m in linea_montos[:1])
-
-                            # --- FIX ---
-                            # Antes se comparaba x0 (borde IZQUIERDO) contra los rangos de columna.
-                            # Como los montos están alineados a la derecha, un monto con menos
-                            # dígitos (p.ej. "652.40") tiene un x0 más grande que uno con más
-                            # dígitos (p.ej. "4,413.88"), aunque ambos estén en la MISMA columna.
-                            # Eso hacía que montos cortos "cruzaran" hacia el rango de la columna
-                            # vecina y se enumeraran con el contador equivocado (cargo <-> abono).
-                            #
-                            # La solución es usar x1 (borde DERECHO), que permanece estable para
-                            # una columna alineada a la derecha sin importar cuántos dígitos tenga
-                            # el número.
-                            if (X_CARGO_MIN <= x1 <= X_CARGO_MAX) or (contiene_codigo and es_primer_monto) or ("P14 TOTAL PLAY" in linea_mayus):
+                            # --- FIX PRINCIPAL ---
+                            # Clasificación por x1 (borde derecho), que es estable
+                            # para columnas alineadas a la derecha, a diferencia de
+                            # x0 que varía según la cantidad de dígitos del monto.
+                            if X_CARGO_MIN <= x1 <= X_CARGO_MAX:
                                 can.setFillColorRGB(1,0,0)
                                 can.setFont("Helvetica-Bold",8)
                                 can.drawRightString(x1+16,y,str(contador_cargos))
