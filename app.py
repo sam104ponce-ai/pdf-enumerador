@@ -141,7 +141,7 @@ if archivo:
                             top = float(w["top"])
                             y = page.height - top - 2
 
-                            if not (X_CARGO_MIN_TDC <= x0 <= X_CARGO_MAX_TDC):
+                            if X_CARGO_MIN_TDC is None or X_CARGO_MAX_TDC is None or not (X_CARGO_MIN_TDC <= x0 <= X_CARGO_MAX_TDC):
                                 continue
 
                             key = (texto, round(x0,1), round(top,1))
