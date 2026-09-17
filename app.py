@@ -6,366 +6,564 @@ from io import BytesIO
 import re
 import os
 
-=========================================================
-
-CONFIG
-
-=========================================================
-
-st.set_page_config(page_title="FlowLedger", page_icon="💼", layout="centered")
-
-st.markdown("<h1 style='text-align:center;'>FlowLedger</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>", unsafe_allow_html=True)
-
-=========================================================
-
-CONFIGURACIÓN
-
-=========================================================
-
-NOTA IMPORTANTE SOBRE ESTOS RANGOS:
-
-Los montos en el PDF están alineados a la DERECHA dentro de su columna,
-
-por lo que el borde derecho (x1) de cada monto es estable (siempre el
-
-mismo valor sin importar cuántos dígitos tenga el número), mientras que
-
-el borde izquierdo (x0) varía según el ancho del texto.
-
-Por eso la clasificación de columna se hace comparando x1, NUNCA x0.
-
-
-
-Estos valores fueron calibrados con el estado de cuenta BBVA TDD real
-
-(columna CARGOS con x1=397.8, columna ABONOS con x1=455.7) y validados:
-
-el conteo resultante (329 cargos, 753 abonos) coincide exactamente con
-
-el resumen "Total de Movimientos" que imprime el propio banco al final
-
-del estado de cuenta.
-
-X_CARGO_MIN, X_CARGO_MAX = 388, 408
-X_ABONO_MIN, X_ABONO_MAX = 448, 468
-patron_monto = re.compile(r'^\d{1,3}(?:,\d{3})*.\d{2}$')
-
-=========================================================
-
-OPCIONES
-
-=========================================================
-
-tipo_pdf = st.radio("Selecciona el tipo de Banco:", ("BBVA TDC", "BBVA TDD"))
-archivo = st.file_uploader(f"Sube tu PDF ({tipo_pdf})", type=["pdf"])
-
-=========================================================
-
-HISTORIAL
-
-=========================================================
-
-if "historial_pdfs" not in st.session_state:
-st.session_state.historial_pdfs = []
-
-def agregar_a_historial(nombre, bytes_pdf, banco):
-st.session_state.historial_pdfs.append({
-"nombre": nombre,
-"pdf_bytes": bytes_pdf,
-"banco": banco
-})
-
-=========================================================
-
-PROCESAMIENTO
-
-=========================================================
-
-if archivo:
-if st.button("Procesar PDF"):
-
-    with st.spinner("Procesando…"):
-        file_bytes = archivo.read()
-
-        # =========================================================
-        # BBVA TDC
-        # =========================================================
-        if tipo_pdf == "BBVA TDC":
-
-            X_CARGO_MIN_TDC, X_CARGO_MAX_TDC = None, None
-            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                page0 = pdf.pages[0]
-                words0 = page0.extract_words()
-
-                for w in words0:
-                    texto = w["text"].upper()
-                    if "IMPORTE" in texto:
-                        x_base = float(w["x0"])
-
-                        posibles = []
-                        for ww in words0:
-                            t = ww["text"].strip()
-                            if patron_monto.match(t):
-                                if abs(float(ww["x0"]) - x_base) < 120:
-                                    posibles.append(float(ww["x0"]))
-
-                        if posibles:
-                            X_CARGO_MIN_TDC = min(posibles) - 10
-                            X_CARGO_MAX_TDC = max(posibles) + 10
-                            break
-
-            packet = BytesIO()
-            can = canvas.Canvas(packet)
-
-            contador = 1
-            en_movimientos = False
-
-            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                for page in pdf.pages:
-
-                    words = page.extract_words(use_text_flow=True)
-                    if not words:
-                        can.showPage()
-                        continue
-
-                    montos_usados = set()
-
-                    for w in words:
-                        texto = w["text"].strip()
-                        texto_mayus = texto.upper()
-
-                        if not en_movimientos:
-                            if "MOVIMIENTOS" in texto_mayus:
-                                en_movimientos = True
-                            else:
-                                continue
-
-                        if "TARJETA" in texto_mayus and "EMPRESARIAL" in texto_mayus:
-                            continue
-
-                        # TEXTO COMPLETO DE LA FILA
-                        linea_texto = ""
-                        for ww in words:
-                            if abs(float(ww["top"]) - float(w["top"])) < 3:
-                                linea_texto += ww["text"] + " "
-
-                        linea_mayus = linea_texto.upper()
-
-                        # 🔹 IGNORAR CAPITAL DE PROMOCIÓN
-                        if "CAPITAL DE PROMOCIÓN" in linea_mayus:
-                            continue
-
-                        # EXCLUIR TOTALES
-                        if any(p in linea_mayus for p in ["TOTAL IMPORTES", "TOTAL", "IMPORTE TOTAL"]):
-                            continue
-
-                        if not patron_monto.match(texto):
-                            continue
-
-                        x0 = float(w["x0"])
-                        x1 = float(w["x1"])
-                        top = float(w["top"])
-                        y = page.height - top - 2
-
-                        if not (X_CARGO_MIN_TDC <= x0 <= X_CARGO_MAX_TDC):
-                            continue
-
-                        key = (texto, round(x0,1), round(top,1))
-                        if key in montos_usados:
-                            continue
-
-                        # ENUMERAR
-                        can.setFillColorRGB(1, 0, 0)
-                        can.setFont("Helvetica-Bold", 8)
-                        can.drawRightString(x1 + 15, y, str(contador))
-
-                        contador += 1
-                        montos_usados.add(key)
-
-                    can.showPage()
-
-            can.save()
-            packet.seek(0)
-
-            overlay_pdf = PdfReader(packet)
-            base_pdf = PdfReader(BytesIO(file_bytes))
-            writer = PdfWriter()
-
-            for i in range(len(base_pdf.pages)):
-                page = base_pdf.pages[i]
-                if i < len(overlay_pdf.pages):
-                    page.merge_page(overlay_pdf.pages[i])
-                writer.add_page(page)
-
-            output_pdf = BytesIO()
-            writer.write(output_pdf)
-            output_pdf.seek(0)
-
-            st.success(f"✅ Total enumerados: {contador - 1}")
-
-            # 🔹 NOMBRE DEL PDF CORREGIDO
-            nombre, ext = os.path.splitext(archivo.name)
-            pdf_final = f"{nombre}_ENUMERADO{ext}"
-
-            st.download_button(
-                label="📥 Descargar PDF Enumerado",
-                data=output_pdf,
-                file_name=pdf_final,
-                mime="application/pdf"
+# =========================================================
+# CONFIG
+# =========================================================
+
+st.set_page_config(
+    page_title="FlowLedger",
+    page_icon="💼",
+    layout="centered"
+)
+
+st.markdown(
+    "<h1 style='text-align:center;'>FlowLedger</h1>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    "<h3 style='text-align:center;color:gray;'>Automatización de Movimientos Bancarios</h3>",
+    unsafe_allow_html=True
+)
+
+# =========================================================
+# CONFIGURACIÓN
+# =========================================================
+
+# IMPORTANTE:
+# El punto decimal debe estar escapado como \.
+# Esta expresión detecta, por ejemplo:
+# 893.55
+# 1,098.09
+# 5,708.29
+
+PATRON_MONTO = re.compile(r"^\d{1,3}(?:,\d{3})*\.\d{2}$")
+
+# =========================================================
+# FUNCIONES AUXILIARES
+# =========================================================
+
+def es_monto(texto):
+    return bool(PATRON_MONTO.match(texto.strip()))
+
+
+def obtener_linea(words, top, tolerancia=3):
+    """Obtiene todos los textos que pertenecen a la misma fila."""
+    fila = [
+        w for w in words
+        if abs(float(w["top"]) - float(top)) < tolerancia
+    ]
+    fila.sort(key=lambda w: float(w["x0"]))
+    return fila
+
+
+def texto_linea(words, top, tolerancia=3):
+    fila = obtener_linea(words, top, tolerancia)
+    return " ".join(w["text"].strip() for w in fila)
+
+
+def detectar_columnas_tdd(words):
+    """
+    Busca EXCLUSIVAMENTE el encabezado de movimientos que contiene:
+    FECHA, DESCRIPCION/DESCRIPCIÓN, REFERENCIA, CARGOS y ABONOS.
+
+    Regresa el x1 de CARGOS y ABONOS.
+    """
+    tops = sorted(set(round(float(w["top"]), 1) for w in words))
+
+    for top in tops:
+        fila = obtener_linea(words, top, 3)
+        textos = [w["text"].upper().strip() for w in fila]
+
+        tiene_fecha = "FECHA" in textos
+        tiene_descripcion = (
+            "DESCRIPCION" in textos or
+            "DESCRIPCIÓN" in textos
+        )
+        tiene_referencia = "REFERENCIA" in textos
+        tiene_cargos = "CARGOS" in textos
+        tiene_abonos = "ABONOS" in textos
+
+        if (
+            tiene_fecha
+            and tiene_descripcion
+            and tiene_referencia
+            and tiene_cargos
+            and tiene_abonos
+        ):
+            cargo = next(
+                w for w in fila
+                if w["text"].upper().strip() == "CARGOS"
+            )
+            abono = next(
+                w for w in fila
+                if w["text"].upper().strip() == "ABONOS"
             )
 
-            agregar_a_historial(pdf_final, output_pdf.getvalue(), tipo_pdf)
+            return float(cargo["x1"]), float(abono["x1"])
 
-        # =========================================================
-        # BBVA TDD (CORREGIDO: clasificación por x1 con rangos calibrados)
-        # =========================================================
-        else:
+    return None, None
 
-            nombre, ext = os.path.splitext(archivo.name)
-            pdf_final = f"{nombre}_ENUMERADO{ext}"
 
-            packet = BytesIO()
-            can = canvas.Canvas(packet)
+def procesar_tdd(file_bytes):
+    """
+    Enumera por separado:
+    Cargos: 1, 2, 3...
+    Abonos: 1, 2, 3...
 
-            contador_cargos = 1
-            contador_abonos = 1
+    La clasificación se hace con la posición horizontal del importe.
+    """
+    packet = BytesIO()
+    can = canvas.Canvas(packet)
 
-            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                for page in pdf.pages:
-                    words = page.extract_words(use_text_flow=True)
-                    if not words:
-                        can.showPage()
-                        continue
+    contador_cargos = 1
+    contador_abonos = 1
+    encontrados_cargos = 0
+    encontrados_abonos = 0
 
-                    montos_usados = set()
+    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
 
-                    for w in words:
-                        t = w["text"].strip()
-                        if not patron_monto.match(t):
-                            continue
+        # -------------------------------------------------
+        # PRIMERO: detectar las columnas reales del PDF
+        # -------------------------------------------------
+        columnas_por_pagina = []
 
-                        x0 = float(w["x0"])
-                        x1 = float(w["x1"])
-                        top = float(w["top"])
+        for page in pdf.pages:
+            words = page.extract_words(use_text_flow=False)
+
+            cargo_x1, abono_x1 = detectar_columnas_tdd(words)
+
+            columnas_por_pagina.append((cargo_x1, abono_x1))
+
+        # -------------------------------------------------
+        # SEGUNDO: procesar cada página
+        # -------------------------------------------------
+        for page_num, page in enumerate(pdf.pages):
+
+            words = page.extract_words(use_text_flow=False)
+
+            if not words:
+                can.showPage()
+                continue
+
+            cargo_x1, abono_x1 = columnas_por_pagina[page_num]
+
+            # Si no se encontró encabezado en esta página,
+            # intentamos reutilizar el de otra página.
+            if cargo_x1 is None or abono_x1 is None:
+                for cx, ax in columnas_por_pagina:
+                    if cx is not None and ax is not None:
+                        cargo_x1, abono_x1 = cx, ax
+                        break
+
+            montos_usados = set()
+
+            for w in words:
+
+                texto = w["text"].strip()
+
+                # -----------------------------------------
+                # Solo importes
+                # -----------------------------------------
+                if not es_monto(texto):
+                    continue
+
+                x0 = float(w["x0"])
+                x1 = float(w["x1"])
+                top = float(w["top"])
+
+                # Evitar encabezados superiores
+                if top < 100:
+                    continue
+
+                linea = texto_linea(words, top)
+                linea_mayus = linea.upper()
+
+                # -----------------------------------------
+                # Excluir filas que NO son movimientos
+                # -----------------------------------------
+                if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
+                    continue
+
+                if any(
+                    palabra in linea_mayus
+                    for palabra in [
+                        "TOTAL DE MOVIMIENTOS",
+                        "TOTAL MOVIMIENTOS",
+                        "TOTAL CARGOS",
+                        "TOTAL ABONOS",
+                        "SALDO INICIAL",
+                        "SALDO FINAL"
+                    ]
+                ):
+                    continue
+
+                # Evitar encabezados de columnas
+                if any(
+                    palabra in linea_mayus
+                    for palabra in [
+                        "FECHA SALDO",
+                        "DESCRIPCION REFERENCIA",
+                        "DESCRIPCIÓN REFERENCIA"
+                    ]
+                ):
+                    continue
+
+                # -----------------------------------------
+                # Evitar duplicados
+                # -----------------------------------------
+                key = (
+                    texto,
+                    round(x0, 1),
+                    round(x1, 1),
+                    round(top, 1)
+                )
+
+                if key in montos_usados:
+                    continue
+
+                # -----------------------------------------
+                # CLASIFICACIÓN
+                #
+                # Comparamos el borde derecho x1 del
+                # importe contra el borde derecho x1
+                # de los encabezados CARGOS y ABONOS.
+                #
+                # En el PDF real:
+                # CARGOS  ≈ 416.63
+                # ABONOS  ≈ 460.27
+                #
+                # Los importes aparecen aproximadamente:
+                # CARGOS  ≈ 417.37
+                # ABONOS  ≈ 457.84
+                # -----------------------------------------
+
+                if cargo_x1 is not None and abono_x1 is not None:
+
+                    distancia_cargo = abs(x1 - cargo_x1)
+                    distancia_abono = abs(x1 - abono_x1)
+
+                    # Tolerancia suficientemente amplia para
+                    # pequeñas variaciones del PDF.
+                    if min(distancia_cargo, distancia_abono) <= 15:
+
                         y = page.height - top - 6
 
-                        if top < 120:
+                        can.setFillColorRGB(1, 0, 0)
+                        can.setFont("Helvetica-Bold", 8)
+
+                        if distancia_cargo < distancia_abono:
+                            can.drawRightString(
+                                x1 + 16,
+                                y,
+                                str(contador_cargos)
+                            )
+                            contador_cargos += 1
+                            encontrados_cargos += 1
+
+                        else:
+                            can.drawRightString(
+                                x1 + 16,
+                                y,
+                                str(contador_abonos)
+                            )
+                            contador_abonos += 1
+                            encontrados_abonos += 1
+
+                        montos_usados.add(key)
+
+            can.showPage()
+
+    can.save()
+    packet.seek(0)
+
+    overlay_pdf = PdfReader(packet)
+    base_pdf = PdfReader(BytesIO(file_bytes))
+    writer = PdfWriter()
+
+    for i, page in enumerate(base_pdf.pages):
+        if i < len(overlay_pdf.pages):
+            page.merge_page(overlay_pdf.pages[i])
+        writer.add_page(page)
+
+    output = BytesIO()
+    writer.write(output)
+    output.seek(0)
+
+    return (
+        output,
+        encontrados_cargos,
+        encontrados_abonos
+    )
+
+
+# =========================================================
+# OPCIONES
+# =========================================================
+
+tipo_pdf = st.radio(
+    "Selecciona el tipo de Banco:",
+    ("BBVA TDC", "BBVA TDD")
+)
+
+archivo = st.file_uploader(
+    f"Sube tu PDF ({tipo_pdf})",
+    type=["pdf"]
+)
+
+# =========================================================
+# HISTORIAL
+# =========================================================
+
+if "historial_pdfs" not in st.session_state:
+    st.session_state.historial_pdfs = []
+
+
+def agregar_a_historial(nombre, bytes_pdf, banco):
+    st.session_state.historial_pdfs.append({
+        "nombre": nombre,
+        "pdf_bytes": bytes_pdf,
+        "banco": banco
+    })
+
+
+# =========================================================
+# PROCESAMIENTO
+# =========================================================
+
+if archivo:
+
+    if st.button("Procesar PDF"):
+
+        with st.spinner("Procesando PDF..."):
+
+            file_bytes = archivo.read()
+
+            # =================================================
+            # BBVA TDD
+            # =================================================
+            if tipo_pdf == "BBVA TDD":
+
+                output_pdf, total_cargos, total_abonos = procesar_tdd(
+                    file_bytes
+                )
+
+                nombre, ext = os.path.splitext(archivo.name)
+                pdf_final = f"{nombre}_ENUMERADO{ext}"
+
+                st.success("✅ PDF procesado correctamente")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.metric(
+                        "Cargos enumerados",
+                        total_cargos
+                    )
+
+                with col2:
+                    st.metric(
+                        "Abonos enumerados",
+                        total_abonos
+                    )
+
+                st.download_button(
+                    label="📥 Descargar PDF Enumerado",
+                    data=output_pdf,
+                    file_name=pdf_final,
+                    mime="application/pdf"
+                )
+
+                agregar_a_historial(
+                    pdf_final,
+                    output_pdf.getvalue(),
+                    tipo_pdf
+                )
+
+            # =================================================
+            # BBVA TDC
+            # =================================================
+            else:
+
+                packet = BytesIO()
+                can = canvas.Canvas(packet)
+
+                contador = 1
+                en_movimientos = False
+
+                with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+
+                    for page in pdf.pages:
+
+                        words = page.extract_words(
+                            use_text_flow=True
+                        )
+
+                        if not words:
+                            can.showPage()
                             continue
 
-                        linea_montos = []
-                        for ww in words:
-                            if abs(float(ww["top"]) - top) < 3:
-                                texto = ww["text"].strip()
-                                if patron_monto.match(texto):
-                                    linea_montos.append({
-                                        "text": texto,
-                                        "x0": float(ww["x0"]),
-                                        "x1": float(ww["x1"])
-                                    })
+                        montos_usados = set()
 
-                        linea_montos = sorted(linea_montos, key=lambda x: x["x0"])
+                        for w in words:
 
-                        # Ignora el 2do monto en filas con >=3 montos (saldo de operación/liquidación)
-                        ignorar = False
-                        if len(linea_montos) >= 3:
-                            for i, m in enumerate(linea_montos):
-                                if m["text"] == t and abs(m["x0"] - x0) < 1:
-                                    if i == 1:
-                                        ignorar = True
-                        if ignorar:
-                            continue
+                            texto = w["text"].strip()
+                            texto_mayus = texto.upper()
 
-                        linea_texto = ""
-                        for ww in words:
-                            if abs(float(ww["top"]) - top) < 3:
-                                linea_texto += ww["text"] + " "
+                            if not en_movimientos:
+                                if "MOVIMIENTOS" in texto_mayus:
+                                    en_movimientos = True
+                                else:
+                                    continue
 
-                        linea_mayus = linea_texto.upper()
-
-                        if "MOVIMIENTOS DE PERIODOS ANTERIORES" in linea_mayus:
-                            continue
-
-                        if "P14 TOTAL PLAY" not in linea_mayus:
-                            if any(p in linea_mayus for p in [
-                                "SALDO","OPERACION","OPERACIÓN",
-                                "LIQUIDACION","LIQUIDACIÓN","TOTAL"
-                            ]):
+                            if (
+                                "TARJETA" in texto_mayus
+                                and "EMPRESARIAL" in texto_mayus
+                            ):
                                 continue
 
-                        key = (t, round(top,1), round(x0,1))
-                        if key in montos_usados:
-                            continue
+                            linea_texto = texto_linea(
+                                words,
+                                float(w["top"])
+                            )
 
-                        # --- FIX PRINCIPAL ---
-                        # Clasificación por x1 (borde derecho), que es estable
-                        # para columnas alineadas a la derecha, a diferencia de
-                        # x0 que varía según la cantidad de dígitos del monto.
-                        if X_CARGO_MIN <= x1 <= X_CARGO_MAX:
-                            can.setFillColorRGB(1,0,0)
-                            can.setFont("Helvetica-Bold",8)
-                            can.drawRightString(x1+16,y,str(contador_cargos))
-                            contador_cargos += 1
+                            linea_mayus = linea_texto.upper()
+
+                            if "CAPITAL DE PROMOCIÓN" in linea_mayus:
+                                continue
+
+                            if any(
+                                p in linea_mayus
+                                for p in [
+                                    "TOTAL IMPORTES",
+                                    "TOTAL",
+                                    "IMPORTE TOTAL"
+                                ]
+                            ):
+                                continue
+
+                            if not es_monto(texto):
+                                continue
+
+                            x0 = float(w["x0"])
+                            x1 = float(w["x1"])
+                            top = float(w["top"])
+                            y = page.height - top - 2
+
+                            # Para TDC usamos una zona amplia alrededor
+                            # de los importes encontrados.
+                            if not (x0 > 0 and x1 > x0):
+                                continue
+
+                            key = (
+                                texto,
+                                round(x0, 1),
+                                round(top, 1)
+                            )
+
+                            if key in montos_usados:
+                                continue
+
+                            can.setFillColorRGB(1, 0, 0)
+                            can.setFont(
+                                "Helvetica-Bold",
+                                8
+                            )
+
+                            can.drawRightString(
+                                x1 + 15,
+                                y,
+                                str(contador)
+                            )
+
+                            contador += 1
                             montos_usados.add(key)
-                            continue
 
-                        if X_ABONO_MIN <= x1 <= X_ABONO_MAX:
-                            can.setFillColorRGB(1,0,0)
-                            can.setFont("Helvetica-Bold",8)
-                            can.drawRightString(x1+16,y,str(contador_abonos))
-                            contador_abonos += 1
-                            montos_usados.add(key)
+                        can.showPage()
 
-                    can.showPage()
+                can.save()
+                packet.seek(0)
 
-            can.save()
-            packet.seek(0)
+                overlay_pdf = PdfReader(packet)
+                base_pdf = PdfReader(BytesIO(file_bytes))
+                writer = PdfWriter()
 
-            overlay_pdf = PdfReader(packet)
-            base_pdf = PdfReader(BytesIO(file_bytes))
-            writer = PdfWriter()
+                for i in range(len(base_pdf.pages)):
+                    page = base_pdf.pages[i]
 
-            for i in range(len(base_pdf.pages)):
-                page = base_pdf.pages[i]
-                if i < len(overlay_pdf.pages):
-                    page.merge_page(overlay_pdf.pages[i])
-                writer.add_page(page)
+                    if i < len(overlay_pdf.pages):
+                        page.merge_page(
+                            overlay_pdf.pages[i]
+                        )
 
-            output = BytesIO()
-            writer.write(output)
-            output.seek(0)
+                    writer.add_page(page)
 
-            st.success(f"✅ Listo: {pdf_final}")
-            st.write(f"Cargos: {contador_cargos - 1}")
-            st.write(f"Abonos: {contador_abonos - 1}")
+                output_pdf = BytesIO()
+                writer.write(output_pdf)
+                output_pdf.seek(0)
 
-            st.download_button("⬇️ Descargar PDF", output, file_name=pdf_final, mime="application/pdf")
+                nombre, ext = os.path.splitext(
+                    archivo.name
+                )
 
-            agregar_a_historial(pdf_final, output.getvalue(), tipo_pdf)
+                pdf_final = f"{nombre}_ENUMERADO{ext}"
 
-=========================================================
+                st.success(
+                    f"✅ Total enumerados: {contador - 1}"
+                )
 
-HISTORIAL VISUAL
+                st.download_button(
+                    label="📥 Descargar PDF Enumerado",
+                    data=output_pdf,
+                    file_name=pdf_final,
+                    mime="application/pdf"
+                )
 
-=========================================================
+                agregar_a_historial(
+                    pdf_final,
+                    output_pdf.getvalue(),
+                    tipo_pdf
+                )
+
+
+# =========================================================
+# HISTORIAL VISUAL
+# =========================================================
 
 if st.session_state.historial_pdfs:
-st.markdown("### 🗂 Historial de PDFs procesados")
 
-indices_a_eliminar = []
+    st.markdown("### 🗂 Historial de PDFs procesados")
 
-for i, item in enumerate(st.session_state.historial_pdfs):
-    col1, col2, col3 = st.columns([4,1,1])
+    indices_a_eliminar = []
 
-    with col1:
-        st.write(f"{item['nombre']} ({item['banco']})")
+    for i, item in enumerate(
+        st.session_state.historial_pdfs
+    ):
 
-    with col2:
-        st.download_button("⬇️", item["pdf_bytes"], file_name=item["nombre"], mime="application/pdf")
+        col1, col2, col3 = st.columns([4, 1, 1])
 
-    with col3:
-        if st.button("🗑️", key=f"eliminar_{i}"):
-            indices_a_eliminar.append(i)
+        with col1:
+            st.write(
+                f"{item['nombre']} ({item['banco']})"
+            )
 
-for i in sorted(indices_a_eliminar, reverse=True):
-    st.session_state.historial_pdfs.pop(i)
+        with col2:
+            st.download_button(
+                "⬇️",
+                item["pdf_bytes"],
+                file_name=item["nombre"],
+                mime="application/pdf",
+                key=f"download_historial_{i}"
+            )
+
+        with col3:
+            if st.button(
+                "🗑️",
+                key=f"eliminar_{i}"
+            ):
+                indices_a_eliminar.append(i)
+
+    for i in sorted(
+        indices_a_eliminar,
+        reverse=True
+    ):
+        st.session_state.historial_pdfs.pop(i)
