@@ -1062,4 +1062,3 @@ if st.session_state.historial_pdfs:
     ):
 
         st.session_state.historial_pdfs.pop(i)
-```
