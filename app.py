@@ -39,7 +39,7 @@ Por eso la clasificación de columna se hace comparando x1, NUNCA x0.
 
 Estos valores fueron calibrados con el estado de cuenta BBVA TDD real
 
-(columna CARGOS con x1≈397.8, columna ABONOS con x1≈455.7) y validados:
+(columna CARGOS con x1=397.8, columna ABONOS con x1=455.7) y validados:
 
 el conteo resultante (329 cargos, 753 abonos) coincide exactamente con
 
